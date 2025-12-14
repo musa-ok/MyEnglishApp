@@ -29,16 +29,18 @@ def init_db():
                   turkish TEXT, 
                   level TEXT, 
                   pos TEXT, 
-                  example_sentence TEXT)''')
+                  example_sentence TEXT,
+                  UNIQUE(english))''')  # Aynı kelime tekrar eklenmesin diye UNIQUE ekledik
 
     c.execute('''CREATE TABLE IF NOT EXISTS user_progress 
                  (user_id INTEGER, 
                   word_id INTEGER, 
                   status TEXT, 
                   FOREIGN KEY(user_id) REFERENCES users(id),
-                  FOREIGN KEY(word_id) REFERENCES words(id))''')
+                  FOREIGN KEY(word_id) REFERENCES words(id),
+                  UNIQUE(user_id, word_id))''')  # Aynı ilerleme tekrar eklenmesin
 
-    # Sütun kontrolleri (Eski veritabanları bozulmasın diye)
+    # Sütun kontrolleri
     try:
         c.execute("ALTER TABLE users ADD COLUMN target_level TEXT DEFAULT 'B2'")
     except:
@@ -56,7 +58,7 @@ def init_db():
     conn.close()
 
 
-# --- KULLANICI ---
+# --- STANDART FONKSİYONLAR ---
 def register_user(username, password):
     conn = create_connection();
     c = conn.cursor()
@@ -149,11 +151,12 @@ def get_level_progress(user_id):
     conn.close()
     stats = {}
     for lvl in ['A1', 'A2', 'B1', 'B2']:
-        stats[lvl] = {'total': total_counts.get(lvl, 0), 'learned': learned_counts.get(lvl, 0)}
+        tot = total_counts.get(lvl, 0);
+        lrn = learned_counts.get(lvl, 0)
+        stats[lvl] = {'total': tot if tot > 0 else 1, 'learned': lrn}
     return stats
 
 
-# --- KELİME & QUIZ ---
 def get_new_word_for_user(user_id, target_levels=None):
     conn = create_connection();
     c = conn.cursor()
@@ -173,12 +176,9 @@ def get_new_word_for_user(user_id, target_levels=None):
 def mark_word_needs_review(user_id, word_id):
     conn = create_connection();
     c = conn.cursor()
-    c.execute("SELECT * FROM user_progress WHERE user_id=? AND word_id=?", (user_id, word_id))
-    if c.fetchone():
-        c.execute("UPDATE user_progress SET status='needs_review' WHERE user_id=? AND word_id=?", (user_id, word_id))
-    else:
-        c.execute("INSERT INTO user_progress (user_id, word_id, status) VALUES (?, ?, 'needs_review')",
-                  (user_id, word_id))
+    # Önce var mı bak, varsa güncelle, yoksa ekle
+    c.execute("INSERT OR REPLACE INTO user_progress (user_id, word_id, status) VALUES (?, ?, 'needs_review')",
+              (user_id, word_id))
     conn.commit();
     conn.close()
 
@@ -186,21 +186,16 @@ def mark_word_needs_review(user_id, word_id):
 def mark_word_learned(user_id, word_id):
     conn = create_connection();
     c = conn.cursor()
-    c.execute("SELECT * FROM user_progress WHERE user_id=? AND word_id=?", (user_id, word_id))
-    if c.fetchone():
-        c.execute("UPDATE user_progress SET status='learned' WHERE user_id=? AND word_id=?", (user_id, word_id))
-    else:
-        c.execute("INSERT INTO user_progress (user_id, word_id, status) VALUES (?, ?, 'learned')", (user_id, word_id))
+    c.execute("INSERT OR REPLACE INTO user_progress (user_id, word_id, status) VALUES (?, ?, 'learned')",
+              (user_id, word_id))
     conn.commit();
     conn.close()
 
 
-# --- QUIZ MANTIĞI (SADECE TEKRAR LİSTESİ) ---
 def get_quiz_question(user_id, target_levels=None):
     conn = create_connection();
     c = conn.cursor()
     word = None
-
     params = [user_id]
     level_filter = ""
     if target_levels:
@@ -208,22 +203,16 @@ def get_quiz_question(user_id, target_levels=None):
         level_filter = f"AND w.level IN ({placeholders})"
         params += target_levels
 
-    # SADECE 'needs_review' olanları getir
-    c.execute(f'''SELECT w.* FROM words w 
-                  JOIN user_progress up ON w.id = up.word_id 
-                  WHERE up.user_id = ? AND up.status = 'needs_review' {level_filter} 
-                  ORDER BY RANDOM() LIMIT 1''', params)
+    c.execute(
+        f'''SELECT w.* FROM words w JOIN user_progress up ON w.id = up.word_id WHERE up.user_id = ? AND up.status = 'needs_review' {level_filter} ORDER BY RANDOM() LIMIT 1''',
+        params)
     word = c.fetchone()
 
-    if not word:
-        conn.close();
-        return None
+    if not word: conn.close(); return None
 
-    # Şıklar
     c.execute("SELECT turkish FROM words WHERE id != ? ORDER BY RANDOM() LIMIT 3", (word[0],))
     wrong_opts = [r[0] for r in c.fetchall()]
-    while len(wrong_opts) < 3: wrong_opts.append("...")  # Hata önleyici
-
+    while len(wrong_opts) < 3: wrong_opts.append("...")
     conn.close()
     return {"id": word[0], "english": word[1], "correct_answer": word[2], "options": wrong_opts + [word[2]]}
 
@@ -237,3 +226,78 @@ def get_learned_words(user_id):
     res = c.fetchall();
     conn.close();
     return res
+
+
+# --- 🔥 GHOST KULLANICISI İÇİN VERİ YÜKLEME ---
+def inject_ghost_data(username="Ghost"):
+    conn = create_connection();
+    c = conn.cursor()
+
+    # 1. Kullanıcıyı bul
+    c.execute("SELECT id FROM users WHERE username=?", (username,))
+    user = c.fetchone()
+    if not user:
+        conn.close();
+        return  # Kullanıcı yoksa işlem yapma
+
+    user_id = user[0]
+
+    # 2. LİSTELER
+    learned_list = [
+        ("fuel", "yakıt"), ("sandwich", "sandviç"), ("every", "her"), ("gallery", "galeri"),
+        ("nobody", "hiç kimse"), ("girl", "kız"), ("hide", "saklamak"), ("dialogue", "diyalog"),
+        ("important", "önemli"), ("money", "para"), ("rule", "kural"), ("idea", "fikir"),
+        ("song", "şarkı"), ("crazy", "deli"), ("wooden", "ahşap"), ("used to", "alışkın olmak"),
+        ("them", "onlara"), ("win", "kazanmak"), ("apple", "elma"), ("towel", "havlu"),
+        ("nurse", "hemşire"), ("large", "büyük"), ("firstly", "öncelikle"), ("bicycle", "bisiklet"),
+        ("delicious", "lezzetli"), ("spider", "örümcek"), ("colour", "renk"), ("lifestyle", "yaşam tarzı"),
+        ("wall", "duvar"), ("student", "öğrenci"), ("amount", "miktar"), ("billion", "milyar"),
+        ("fruit", "meyve"), ("fail", "başarısız olmak"), ("soon", "yakında"), ("programme", "program"),
+        ("skirt", "etek"), ("she", "o"), ("detail", "detay"), ("point", "nokta"), ("eighty", "seksen"),
+        ("pants", "pantolon"), ("director", "müdür"), ("popular", "popüler"), ("after", "sonrasında"),
+        ("will", "gelecek zaman"), ("dish", "tabak"), ("exist", "var olmak"), ("warm", "ılık"),
+        ("throw", "atmak"), ("several", "birçok"), ("sixty", "altmış"), ("touch", "dokunmak"),
+        ("spoon", "kaşık"), ("save", "kaydetmek"), ("another", "bir diğer"), ("corner", "köşe"),
+        ("small", "küçük"), ("normal", "normal"), ("advice", "tavsiye"), ("education", "eğitim"),
+        ("spelling", "yazım"), ("beginning", "başlangıç"), ("structure", "yapı"), ("personality", "kişilik"),
+        ("buy", "satın almak"), ("March", "Mart"), ("bowl", "tas")
+    ]
+
+    review_list = [
+        ("track", "izlemek"), ("unemployment", "işsizlik"), ("experience", "deneyim"), ("visitor", "ziyaretçi"),
+        ("device", "cihaz"), ("infinitive", "mastar"), ("field", "alan"), ("position", "konum"),
+        ("disaster", "felaket"), ("happily", "mutlu bir şekilde"), ("possibility", "olasılık"), ("deal", "anlaşmak"),
+        ("tradition", "gelenek"), ("speech", "konuşma"), ("receive", "almak"), ("independent", "bağımsız"),
+        ("evidence", "kanıt"), ("suddenly", "aniden"), ("purpose", "amaç"), ("informal", "resmi olmayan"),
+        ("journey", "seyahat"), ("rise", "yükselmek"), ("pocket", "cep"), ("rubbish", "zırva"), ("pair", "çift")
+    ]
+
+    # 3. YÜKLEME
+    # Bildiklerim (Learned)
+    for eng, tur in learned_list:
+        try:
+            c.execute(
+                "INSERT OR IGNORE INTO words (english, turkish, level, pos, example_sentence) VALUES (?, ?, 'A1', 'n.', '-')",
+                (eng, tur))
+            c.execute("SELECT id FROM words WHERE english=?", (eng,))
+            wid = c.fetchone()[0]
+            c.execute("INSERT OR IGNORE INTO user_progress (user_id, word_id, status) VALUES (?, ?, 'learned')",
+                      (user_id, wid))
+        except:
+            pass
+
+    # Tekrarlar (Needs Review)
+    for eng, tur in review_list:
+        try:
+            c.execute(
+                "INSERT OR IGNORE INTO words (english, turkish, level, pos, example_sentence) VALUES (?, ?, 'B1', 'n.', '-')",
+                (eng, tur))
+            c.execute("SELECT id FROM words WHERE english=?", (eng,))
+            wid = c.fetchone()[0]
+            c.execute("INSERT OR REPLACE INTO user_progress (user_id, word_id, status) VALUES (?, ?, 'needs_review')",
+                      (user_id, wid))
+        except:
+            pass
+
+    conn.commit();
+    conn.close()
