@@ -200,24 +200,20 @@ else:
         else:
             st.success("Tebrikler! Bu seviyeyi bitirdin.")
 
-    # --- 2. QUIZ (HATA DÜZELTİLDİ) ---
-    elif menu == "🏆 Quiz":
-        # Veri kontrolü ve temizliği
+        # --- 2. QUIZ (DÜZELTİLMİŞ) ---
+        elif menu == "🏆 Quiz":
+        # Veri yoksa çekmeyi dene
         if 'quiz_data' not in st.session_state or st.session_state.quiz_data is None:
             st.session_state.quiz_data = db.get_quiz_question(user_id, ["A1", "A2", "B1", "B2"])
             if st.session_state.quiz_data:
-                # Veri dict tipinde mi kontrol et, değilse düzelt
-                if isinstance(st.session_state.quiz_data, dict):
-                    opts = st.session_state.quiz_data['options']
-                    random.shuffle(opts)
-                    st.session_state.quiz_data['shuffled'] = opts
-                else:
-                    st.session_state.quiz_data = None  # Bozuk veriyi sil
+                opts = st.session_state.quiz_data['options']
+                random.shuffle(opts)
+                st.session_state.quiz_data['shuffled'] = opts
 
         q = st.session_state.quiz_data
 
-        # Ekstra güvenlik: q bir sözlük olmalı ve 'options' içermeli
-        if q and isinstance(q, dict) and 'shuffled' in q:
+        # Eğer soru varsa göster
+        if q:
             st.markdown(
                 f"<div style='text-align:center; padding:30px; background:#1e2329; border-radius:20px; margin-bottom:20px; border:1px solid #30363D;'><h1 style='color:#F2CC60; margin:0;'>{q['english'].upper()}</h1></div>",
                 unsafe_allow_html=True)
@@ -227,21 +223,35 @@ else:
                 col_to_use = c1 if i % 2 == 0 else c2
                 if col_to_use.button(opt, key=f"q_{i}", use_container_width=True):
                     if opt == q['correct_answer']:
-                        st.success("DOĞRU! +20 XP");
-                        db.add_xp(user_id, 20);
-                        time.sleep(1);
-                        st.session_state.quiz_data = None;
-                        st.rerun()
+                        # --- KRİTİK DÜZELTME: DOĞRU BİLİNCE ÖĞRENİLDİ İŞARETLE ---
+                        st.success("DOĞRU! +20 XP")
+                        db.add_xp(user_id, 20)
+                        db.mark_word_learned(user_id, q['id'])  # <--- ARTIK LİSTEDEN DÜŞECEK
+                        time.sleep(0.5)
+                        st.session_state.quiz_data = None  # Soruyu sıfırla
+                        st.rerun()  # Yenile
                     else:
-                        st.error(f"Yanlış! -> {q['correct_answer']}");
-                        db.mark_word_needs_review(user_id, q['id']);
-                        time.sleep(1.5);
-                        st.session_state.quiz_data = None;
+                        st.error(f"Yanlış! -> {q['correct_answer']}")
+                        # Yanlışsa zaten listede kalmaya devam eder
+                        time.sleep(1.5)
+                        st.session_state.quiz_data = None
                         st.rerun()
-            if st.button("Pas Geç", use_container_width=True): st.session_state.quiz_data = None; st.rerun()
+
+            if st.button("Pas Geç", use_container_width=True):
+                st.session_state.quiz_data = None
+                st.rerun()
+
+        # Soru yoksa (Liste boşsa) bu mesaj çıkacak
         else:
-            st.info("Quiz için uygun kelime bulunamadı veya veri yükleniyor...")
-            if st.button("Tekrar Dene"): st.session_state.quiz_data = None; st.rerun()
+            st.balloons()  # Balonlar!
+            st.markdown("""
+                <div style='text-align:center; padding:40px; background:#161b22; border-radius:20px; border:1px solid #7EE787;'>
+                    <h1 style='font-size:60px;'>🎉</h1>
+                    <h2 style='color:#7EE787;'>Tebrikler!</h2>
+                    <p style='font-size:18px; color:#ccc;'>Tekrar listen tertemiz. Bilmediğin kelime kalmadı!</p>
+                    <p style='font-size:14px; color:#888;'>Yeni kelimeler eklemek için "Çalış" sekmesine git.</p>
+                </div>
+                """, unsafe_allow_html=True)
 
     # --- 3. LİDERLER (GERİ GELDİ) ---
     elif menu == "🥇 Liderler":

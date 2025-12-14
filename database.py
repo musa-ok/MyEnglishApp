@@ -207,28 +207,38 @@ def get_quiz_question(user_id, target_levels=None):
     conn = create_connection();
     c = conn.cursor()
     word = None
+
+    # Sadece 'needs_review' (Tekrar Listesi) olanları çekiyoruz
+    params = [user_id]
+    level_filter = ""
     if target_levels:
         placeholders = ','.join(['?'] * len(target_levels))
-        # Önce review gerekenler
-        query = f'''SELECT w.* FROM words w JOIN user_progress up ON w.id = up.word_id WHERE up.user_id = ? AND up.status = 'needs_review' AND w.level IN ({placeholders}) ORDER BY RANDOM() LIMIT 1'''
-        params = [user_id] + target_levels
-        c.execute(query, params)
-    else:
-        c.execute(
-            '''SELECT w.* FROM words w JOIN user_progress up ON w.id = up.word_id WHERE up.user_id = ? AND up.status = 'needs_review' ORDER BY RANDOM() LIMIT 1''',
-            (user_id,))
+        level_filter = f"AND w.level IN ({placeholders})"
+        params += target_levels
+
+    # SADECE TEKRAR GEREKENLERDEN SOR
+    c.execute(f'''SELECT w.* FROM words w 
+                  JOIN user_progress up ON w.id = up.word_id 
+                  WHERE up.user_id = ? AND up.status = 'needs_review' {level_filter} 
+                  ORDER BY RANDOM() LIMIT 1''', params)
     word = c.fetchone()
 
-    if not word:  # Review yoksa yeni kelime sor (veya öğrendiklerinden sorabilirsin)
-        return get_new_word_for_user(user_id, target_levels)
+    # Eğer kelime yoksa (Liste boşsa) None dön
+    if not word:
+        conn.close()
+        return None
 
-    if not word: conn.close(); return None
-
+    # Şıkları oluştur (Yanlış şıklar rastgele herhangi bir yerden gelebilir)
     c.execute("SELECT turkish FROM words WHERE id != ? ORDER BY RANDOM() LIMIT 3", (word[0],))
     wrong_opts = [r[0] for r in c.fetchall()]
     conn.close()
-    return {"id": word[0], "english": word[1], "correct_answer": word[2], "options": wrong_opts + [word[2]]}
 
+    return {
+        "id": word[0],
+        "english": word[1],
+        "correct_answer": word[2],
+        "options": wrong_opts + [word[2]]
+    }
 
 def get_learned_words(user_id):
     conn = create_connection(); c = conn.cursor()
