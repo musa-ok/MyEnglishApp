@@ -17,7 +17,7 @@ except Exception as e:
 # --- CSS (MOBİL SIKIŞTIRMA & KART TASARIMI) ---
 st.markdown("""
 <style>
-    /* 1. Sayfa Boşluklarını Yok Et (Tam Ekran Hisssi) */
+    /* 1. Sayfa Boşluklarını Yok Et */
     .stApp { background-color: #0E1117; }
     .block-container {
         padding-top: 1rem !important;
@@ -27,42 +27,18 @@ st.markdown("""
     }
 
     /* 2. KART BUTONU (Butonu Karta Dönüştürme) */
-    /* Streamlit butonunu modifiye ediyoruz */
     div.stButton > button:first-child {
         border-radius: 15px;
         border: 1px solid #30363D;
         transition: transform 0.1s;
     }
 
-    /* 'card-btn' anahtarına sahip butonu hedefle (Python'da key vereceğiz) */
-    /* Bu stil, butonu devasa bir karta çevirir */
-    .big-card-button {
-        height: 300px !important; /* Kart Yüksekliği */
-        width: 100% !important;
-        background: linear-gradient(145deg, #1e2329, #161b22) !important;
-        color: #58A6FF !important;
-        font-size: 32px !important;
-        font-weight: 800 !important;
-        white-space: normal !important; /* Uzun metinleri alt satıra al */
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-    }
-    .big-card-button:active { transform: scale(0.98); border-color: #58A6FF; }
-
-    /* 3. ALT BUTONLARI SIKIŞTIRMA (Yan Yana) */
-    /* Mobilde butonlar alt alta kaymasın diye zorluyoruz */
+    /* 3. ALT BUTONLARI SIKIŞTIRMA */
     [data-testid="column"] {
-        padding: 0px 5px !important; /* Sütun boşluklarını azalt */
+        padding: 0px 5px !important;
         min-width: 0 !important;
     }
 
-    /* Aksiyon Butonları (Küçük) */
-    .action-btn { font-size: 18px !important; padding: 0px !important; height: 50px !important; }
-
-    /* Seviye Rozetleri */
     .badge-info { font-size: 12px; color: #888; font-weight: normal; margin-top: 5px; }
 
 </style>
@@ -116,8 +92,7 @@ else:
 
     # --- 1. ÇALIŞMA KARTLARI (MOBİL VERSİYON) ---
     if menu == "⚡ Çalış":
-        # Seviye Yönetimi (Arkaplanda)
-        active_levels = ["A1", "A2", "B1", "B2"]  # Hepsini açalım veya user settings'den çekelim
+        active_levels = ["A1", "A2", "B1", "B2"]
 
         if 'card_word' not in st.session_state:
             st.session_state.card_word = db.get_new_word_for_user(user_id, active_levels)
@@ -130,21 +105,11 @@ else:
 
             # Kartın İçeriğini Belirle
             if not st.session_state.is_flipped:
-                # ÖN YÜZ
                 card_text = f"{eng.upper()}\n\n({lvl} • {pos})"
-                # CSS ile bu butonu mavi/siyah yapıyoruz
-                btn_type = "secondary"
             else:
-                # ARKA YÜZ
                 card_text = f"{tur}\n\n🇬🇧 {eng}"
-                # Çevrilince rengi değişsin (CSS ile border rengi verilebilir)
-                btn_type = "primary"
 
             # --- KART (DEV BUTTON) ---
-            # Buradaki hile: Butonun kendisine özel bir CSS class veremesek de
-            # sayfanın en üstündeki butonu hedefleyen CSS yazdık.
-            # Kartın üzerine tıklayınca state değişecek.
-
             st.markdown("<style> div.stButton > button { height: 250px; font-size: 28px; } </style>",
                         unsafe_allow_html=True)
 
@@ -152,14 +117,12 @@ else:
                 st.session_state.is_flipped = not st.session_state.is_flipped
                 st.rerun()
 
-            # KARTIN ALTINDAKİ İPUCU
             if not st.session_state.is_flipped:
                 st.caption("👆 Çevirmek için karta dokun")
             else:
                 st.caption("👆 İngilizcesi için dokun")
 
-            # --- AKSİYON BUTONLARI (SIKIŞTIRILMIŞ) ---
-            # Tek satırda 4 işlem: Dinle | Tekrar | Ezberledim | Sonraki
+            # --- AKSİYON BUTONLARI ---
             c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
 
             with c1:
@@ -213,7 +176,10 @@ else:
             # Şıklar (2x2)
             c1, c2 = st.columns(2)
             for i, opt in enumerate(q['shuffled']):
-                if (i % 2 == 0 ? c1: c2).button(opt, key=f"q_{i}", use_container_width=True):
+                # DÜZELTİLEN KISIM BURASI (Python Ternary Operator)
+                col_to_use = c1 if i % 2 == 0 else c2
+
+                if col_to_use.button(opt, key=f"q_{i}", use_container_width=True):
                     if opt == q['correct_answer']:
                         st.success("DOĞRU! +20 XP");
                         db.add_xp(user_id, 20);
