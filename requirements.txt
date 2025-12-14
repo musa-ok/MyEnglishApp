@@ -1,0 +1,5 @@
+streamlit
+pandas
+gTTS
+requests
+python-dotenv
