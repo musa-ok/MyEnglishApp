@@ -14,32 +14,80 @@ try:
 except Exception as e:
     st.error(f"DB Hatası: {e}")
 
-# --- CSS (MOBİL SIKIŞTIRMA & KART TASARIMI) ---
+# --- CSS (PREMIUM TASARIM) ---
 st.markdown("""
 <style>
-    /* 1. Sayfa Boşluklarını Yok Et */
     .stApp { background-color: #0E1117; }
+
+    /* Sayfa kenar boşluklarını ayarla */
     .block-container {
-        padding-top: 1rem !important;
-        padding-bottom: 0rem !important;
-        padding-left: 0.5rem !important;
-        padding-right: 0.5rem !important;
+        padding-top: 2rem !important;
+        padding-bottom: 2rem !important;
+        max-width: 800px; /* PC'de çok yayılmasın */
     }
 
-    /* 2. KART BUTONU (Butonu Karta Dönüştürme) */
-    div.stButton > button:first-child {
-        border-radius: 15px;
+    /* --- KART TASARIMI --- */
+    .card-container {
+        background: linear-gradient(135deg, #161b22 0%, #0d1117 100%);
         border: 1px solid #30363D;
-        transition: transform 0.1s;
+        border-radius: 24px;
+        padding: 40px 20px;
+        min-height: 280px; /* Sabit yükseklik */
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        transition: transform 0.3s ease, border-color 0.3s ease;
+        margin-bottom: 20px;
     }
 
-    /* 3. ALT BUTONLARI SIKIŞTIRMA */
-    [data-testid="column"] {
-        padding: 0px 5px !important;
-        min-width: 0 !important;
+    .card-container:hover {
+        border-color: #58A6FF;
+        transform: translateY(-5px);
+        box-shadow: 0 15px 40px rgba(88, 166, 255, 0.1);
     }
 
-    .badge-info { font-size: 12px; color: #888; font-weight: normal; margin-top: 5px; }
+    /* Yazı Stilleri */
+    .word-main {
+        font-size: 48px;
+        font-weight: 800;
+        background: -webkit-linear-gradient(45deg, #58A6FF, #1f6feb);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 10px;
+    }
+
+    .word-meaning {
+        font-size: 42px;
+        font-weight: 700;
+        color: #7EE787;
+        margin-bottom: 10px;
+    }
+
+    .meta-info {
+        font-size: 14px;
+        color: #8b949e;
+        background: rgba(255,255,255,0.05);
+        padding: 5px 15px;
+        border-radius: 20px;
+        margin-top: 10px;
+        display: inline-block;
+    }
+
+    /* Butonları Güzelleştir */
+    div.stButton > button {
+        border-radius: 12px;
+        font-weight: 600;
+        border: 1px solid #30363D;
+        height: 55px; /* Buton yüksekliği */
+        transition: all 0.2s;
+    }
+    div.stButton > button:active { transform: scale(0.96); }
+
+    /* Çevir Butonu (Özel) */
+    .flip-btn { border-color: #58A6FF !important; color: #58A6FF !important; }
 
 </style>
 """, unsafe_allow_html=True)
@@ -62,9 +110,9 @@ def autoplay_audio(text):
 if 'user' not in st.session_state: st.session_state.user = None
 
 if not st.session_state.user:
-    col1, col2, col3 = st.columns([1, 8, 1])
-    with col2:
-        st.markdown("<h2 style='text-align: center; color:#58A6FF;'>🇬🇧 Oxford 3000</h2>", unsafe_allow_html=True)
+    c1, c2, c3 = st.columns([1, 6, 1])
+    with c2:
+        st.markdown("<h1 style='text-align:center; color:#58A6FF;'>🇬🇧 Oxford 3000</h1>", unsafe_allow_html=True)
         t1, t2 = st.tabs(["Giriş", "Kayıt"])
         with t1:
             u = st.text_input("Kullanıcı");
@@ -84,13 +132,15 @@ else:
     user_id = st.session_state.user[0]
     learned_count, xp, streak, db_target_level = db.get_user_stats(user_id)
 
-    # Sidebar (Menü)
+    # Sidebar
     with st.sidebar:
-        st.write(f"👤 **{st.session_state.user[1]}** | 🔥 {streak} Gün | ⭐ {xp} XP")
+        st.write(f"👤 **{st.session_state.user[1]}**")
+        st.write(f"🔥 {streak} Gün | ⭐ {xp} XP")
+        st.divider()
         menu = st.radio("Menü", ["⚡ Çalış", "🏆 Quiz", "📚 Listem"])
         if st.button("Çıkış"): st.session_state.user = None; st.rerun()
 
-    # --- 1. ÇALIŞMA KARTLARI (MOBİL VERSİYON) ---
+    # --- 1. ÇALIŞMA KARTLARI (PREMIUM) ---
     if menu == "⚡ Çalış":
         active_levels = ["A1", "A2", "B1", "B2"]
 
@@ -103,43 +153,54 @@ else:
         if w:
             wid, eng, tur, lvl, pos, ex = w if len(w) == 6 else (*w, "Kelime", "-")
 
-            # Kartın İçeriğini Belirle
+            # Kartın Durumu
             if not st.session_state.is_flipped:
-                card_text = f"{eng.upper()}\n\n({lvl} • {pos})"
+                # ÖN YÜZ
+                html_content = f"""
+                <div class="card-container">
+                    <div style="font-size:14px; color:#8b949e; margin-bottom:15px;">İNGİLİZCESİ</div>
+                    <div class="word-main">{eng.upper()}</div>
+                    <div class="meta-info">{lvl} • {pos}</div>
+                </div>
+                """
+                btn_label = "🔄 Kartı Çevir"
             else:
-                card_text = f"{tur}\n\n🇬🇧 {eng}"
+                # ARKA YÜZ
+                html_content = f"""
+                <div class="card-container" style="border-color: #7EE787;">
+                    <div style="font-size:14px; color:#8b949e; margin-bottom:15px;">ANLAMI</div>
+                    <div class="word-meaning">{tur}</div>
+                    <div style="margin-top:20px; color:#ccc;">🇬🇧 {eng}</div>
+                </div>
+                """
+                btn_label = "🔄 Ön Yüze Dön"
 
-            # --- KART (DEV BUTTON) ---
-            st.markdown("<style> div.stButton > button { height: 250px; font-size: 28px; } </style>",
-                        unsafe_allow_html=True)
+            # 1. KARTI GÖSTER
+            st.markdown(html_content, unsafe_allow_html=True)
 
-            if st.button(card_text, key="flashcard_btn", use_container_width=True):
+            # 2. ÇEVİRME BUTONU (Ortada ve Geniş)
+            if st.button(btn_label, use_container_width=True):
                 st.session_state.is_flipped = not st.session_state.is_flipped
                 st.rerun()
 
-            if not st.session_state.is_flipped:
-                st.caption("👆 Çevirmek için karta dokun")
-            else:
-                st.caption("👆 İngilizcesi için dokun")
+            st.write("")  # Küçük boşluk
 
-            # --- AKSİYON BUTONLARI ---
+            # 3. AKSİYONLAR (Tek Satır - Sıkıştırılmış)
             c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
 
             with c1:
-                if st.button("🔊", help="Dinle"):
+                if st.button("🔊", help="Dinle", use_container_width=True):
                     autoplay_audio(eng)
-
             with c2:
-                if st.button("🤔", help="Tekrar Listesine At"):
+                if st.button("🤔", help="Tekrar Listesine At", use_container_width=True):
                     db.mark_word_needs_review(user_id, wid)
-                    st.toast("Listeye atıldı!", icon="📥")
+                    st.toast("Listeye alındı", icon="📥")
                     time.sleep(0.5)
                     st.session_state.card_word = db.get_new_word_for_user(user_id, active_levels)
                     st.session_state.is_flipped = False;
                     st.rerun()
-
             with c3:
-                if st.button("✅", type="primary", help="Ezberledim"):
+                if st.button("✅", type="primary", help="Ezberledim", use_container_width=True):
                     db.mark_word_learned(user_id, wid)
                     db.add_xp(user_id, 30)
                     st.toast("+30 XP", icon="🔥")
@@ -147,15 +208,14 @@ else:
                     st.session_state.card_word = db.get_new_word_for_user(user_id, active_levels)
                     st.session_state.is_flipped = False;
                     st.rerun()
-
             with c4:
-                if st.button("➡️", help="Pas Geç"):
+                if st.button("➡️", help="Pas Geç", use_container_width=True):
                     st.session_state.card_word = db.get_new_word_for_user(user_id, active_levels)
                     st.session_state.is_flipped = False;
                     st.rerun()
 
         else:
-            st.success("Tüm kelimeler bitti! 🎉")
+            st.success("Tebrikler! Bu seviyeyi bitirdin.")
 
     # --- 2. QUIZ ---
     elif menu == "🏆 Quiz":
@@ -168,17 +228,13 @@ else:
 
         q = st.session_state.quiz_data
         if q:
-            # Soru Kartı
             st.markdown(
-                f"<div style='text-align:center; padding:20px; background:#1e2329; border-radius:15px; margin-bottom:10px;'><h1 style='color:#F2CC60; margin:0;'>{q['english'].upper()}</h1></div>",
+                f"<div style='text-align:center; padding:30px; background:#1e2329; border-radius:20px; margin-bottom:20px; border:1px solid #30363D;'><h1 style='color:#F2CC60; margin:0;'>{q['english'].upper()}</h1></div>",
                 unsafe_allow_html=True)
 
-            # Şıklar (2x2)
             c1, c2 = st.columns(2)
             for i, opt in enumerate(q['shuffled']):
-                # DÜZELTİLEN KISIM BURASI (Python Ternary Operator)
                 col_to_use = c1 if i % 2 == 0 else c2
-
                 if col_to_use.button(opt, key=f"q_{i}", use_container_width=True):
                     if opt == q['correct_answer']:
                         st.success("DOĞRU! +20 XP");
