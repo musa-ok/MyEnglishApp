@@ -1,61 +1,55 @@
 import requests
-import json
 import streamlit as st
 
-# Google Gemini API URL'si
-URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+# Hugging Face API URL'si (Mistral-7B Modeli - Çok zeki ve hızlıdır)
+API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3"
 
 
 def get_ai_feedback(word, sentence):
-    """
-    Gemini API'ye direkt HTTP isteği atar (Kütüphanesiz).
-    Bu yöntem donma yapmaz.
-    """
-
-    # 1. API Anahtarını Al (Streamlit Secrets'tan)
     try:
-        # Streamlit Cloud'daki "Secrets" kısmından şifreyi çeker
-        api_key = st.secrets["GOOGLE_API_KEY"]
+        # Token'ı al
+        api_token = st.secrets["HUGGINGFACE_API_KEY"]
     except:
-        return "⚠️ Hata: API Anahtarı bulunamadı! Streamlit ayarlarından 'Secrets' kısmına GOOGLE_API_KEY ekle."
+        return "⚠️ Hata: HUGGINGFACE_API_KEY bulunamadı! Secrets ayarlarını kontrol et."
 
-    # 2. Yapay Zekaya Gidecek Mesaj (Prompt)
-    prompt = f"""
-    Sen harika bir İngilizce öğretmenisin.
+    headers = {"Authorization": f"Bearer {api_token}"}
+
+    # Yapay Zekaya (Mistral) gönderilecek prompt
+    # Mistral 'instruction' formatını sever.
+    prompt = f"""<s>[INST] Sen yardımsever bir İngilizce öğretmenisin.
     Öğrenci '{word}' kelimesini kullanarak şu cümleyi kurdu: "{sentence}"
 
-    Lütfen Türkçe olarak:
-    1. Cümlede gramer hatası var mı?
+    Lütfen Türkçe olarak şu 3 maddeyi cevapla:
+    1. Gramer hatası var mı?
     2. Kelime doğru anlamda kullanılmış mı?
-    3. Hata varsa doğrusunu göster.
-    4. Kısa ve motive edici bir yorum yap (Emoji kullan).
-
-    Cevabı çok uzun tutma, özet geç.
+    3. Hata varsa düzelt ve motive edici kısa bir yorum yap. [/INST]
     """
 
-    # 3. Veriyi Hazırla
     payload = {
-        "contents": [{
-            "parts": [{"text": prompt}]
-        }]
+        "inputs": prompt,
+        "parameters": {
+            "max_new_tokens": 250,  # Cevap uzunluğu
+            "return_full_text": False,  # Sadece cevabı ver, soruyu tekrar etme
+            "temperature": 0.7
+        }
     }
 
-    headers = {'Content-Type': 'application/json'}
-
-    # 4. İsteği Gönder (Postacı Yola Çıktı 📨)
     try:
-        response = requests.post(f"{URL}?key={api_key}", headers=headers, data=json.dumps(payload), timeout=10)
+        response = requests.post(API_URL, headers=headers, json=payload, timeout=10)
 
         if response.status_code == 200:
-            # Cevap geldiyse içini açıp metni alalım
+            # Hugging Face liste içinde sözlük döndürür
             result = response.json()
-            try:
-                text = result['candidates'][0]['content']['parts'][0]['text']
-                return text
-            except:
-                return "Cevap geldi ama okuyamadım. Tekrar dene."
+            if isinstance(result, list) and len(result) > 0:
+                return result[0]['generated_text']
+            else:
+                return "Cevap boş döndü."
+
+        elif "loading" in response.text.lower():
+            return "⏳ Model şu an uyanıyor, 10 saniye sonra tekrar bas!"
+
         else:
-            return f"Bir sorun oldu. Hata Kodu: {response.status_code} (API Key doğru mu?)"
+            return f"Hata oluştu: {response.status_code} - {response.text}"
 
     except Exception as e:
         return f"Bağlantı hatası: {str(e)}"
