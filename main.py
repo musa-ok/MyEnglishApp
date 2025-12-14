@@ -93,19 +93,51 @@ else:
     user_id = st.session_state.user[0]
     learned_count, xp, streak, db_target_level = db.get_user_stats(user_id)
 
-    # --- SIDEBAR ---
+    # --- SIDEBAR (SEVİYE AYARI GERİ GELDİ) ---
     with st.sidebar:
         st.write(f"👤 **{st.session_state.user[1]}**")
         st.write(f"🔥 {streak} Gün | ⭐ {xp} XP")
+
         st.divider()
+
+        # --- SEVİYE SEÇİCİ ---
+        lvl_opts = ["A1", "A2", "B1", "B2"]
+        # Kullanıcının kayıtlı seviyesini bul
+        try:
+            def_idx = lvl_opts.index(db_target_level)
+        except:
+            def_idx = 3  # Bulamazsa B2 yap
+
+        # Kutuyu göster
+        selected_lvl = st.selectbox("🎯 Hedef Seviye", lvl_opts, index=def_idx)
+
+        # Değişiklik varsa kaydet
+        if selected_lvl != db_target_level:
+            db.update_target_level(user_id, selected_lvl)
+            st.toast(f"Seviye {selected_lvl} kaydedildi!", icon="💾")
+            # Sayfayı yenilemeye gerek yok, altta active_levels güncellenecek
+
+        # Aktif seviyeleri belirle (Örn: B1 seçilirse A1,A2,B1 dahil olsun)
+        active_levels = ["A1"]
+        if "A2" in selected_lvl: active_levels += ["A2"]
+        if "B1" in selected_lvl: active_levels += ["A2", "B1"]
+        if "B2" in selected_lvl: active_levels += ["A2", "B1", "B2"]
+
+        st.divider()
+
         menu = st.radio("Menü", ["⚡ Çalış", "🏆 Quiz", "🥇 Liderler", "📚 Listem"])
         if st.button("Çıkış"): st.session_state.user = None; st.rerun()
 
     # --- 1. ÇALIŞMA SAYFASI ---
     if menu == "⚡ Çalış":
-        active_levels = ["A1", "A2", "B1", "B2"]
 
-        if 'card_word' not in st.session_state:
+        # Eğer seviye değişirse kartı sıfırla ki yeni seviyeden gelsin
+        if 'last_lvl' not in st.session_state: st.session_state.last_lvl = selected_lvl
+        if st.session_state.last_lvl != selected_lvl:
+            st.session_state.card_word = None
+            st.session_state.last_lvl = selected_lvl
+
+        if 'card_word' not in st.session_state or st.session_state.card_word is None:
             st.session_state.card_word = db.get_new_word_for_user(user_id, active_levels)
             st.session_state.is_flipped = False
 
@@ -167,13 +199,13 @@ else:
                     st.session_state.is_flipped = False;
                     st.rerun()
         else:
-            st.success("Tebrikler! Bu seviyeyi bitirdin.")
+            st.success("Tebrikler! Bu seviyedeki (ve altındaki) tüm kelimeleri bitirdin.")
 
     # --- 2. QUIZ ---
     elif menu == "🏆 Quiz":
-        # Veri kontrol
         if 'quiz_data' not in st.session_state or st.session_state.quiz_data is None:
-            st.session_state.quiz_data = db.get_quiz_question(user_id, ["A1", "A2", "B1", "B2"])
+            # Quiz de seçilen seviyeye göre gelsin
+            st.session_state.quiz_data = db.get_quiz_question(user_id, active_levels)
             if st.session_state.quiz_data:
                 opts = st.session_state.quiz_data['options']
                 random.shuffle(opts)
@@ -193,7 +225,7 @@ else:
                     if opt == q['correct_answer']:
                         st.success("DOĞRU! +20 XP")
                         db.add_xp(user_id, 20)
-                        db.mark_word_learned(user_id, q['id'])  # Listeden düşür
+                        db.mark_word_learned(user_id, q['id'])
                         time.sleep(0.5);
                         st.session_state.quiz_data = None;
                         st.rerun()
@@ -206,7 +238,6 @@ else:
                 st.session_state.quiz_data = None;
                 st.rerun()
         else:
-            # Liste boşsa burası çalışır
             st.balloons()
             st.markdown(
                 """<div style='text-align:center; padding:40px; background:#161b22; border-radius:20px; border:1px solid #7EE787;'><h2 style='color:#7EE787;'>Tebrikler! 🎉</h2><p style='font-size:18px; color:#ccc;'>Tekrar listen tertemiz. Bilmediğin kelime kalmadı!</p></div>""",
