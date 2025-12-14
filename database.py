@@ -250,3 +250,4 @@ def get_review_words(user_id):
     res = c.fetchall();
     conn.close();
     return res
+#Guncelleme
