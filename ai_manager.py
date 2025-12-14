@@ -1,8 +1,8 @@
 import requests
 import streamlit as st
 
-# Hugging Face API URL'si (Mistral-7B Modeli - Çok zeki ve hızlıdır)
-API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3"
+# YENİ ADRES: router.huggingface.co
+API_URL = "https://router.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3"
 
 
 def get_ai_feedback(word, sentence):
@@ -14,8 +14,7 @@ def get_ai_feedback(word, sentence):
 
     headers = {"Authorization": f"Bearer {api_token}"}
 
-    # Yapay Zekaya (Mistral) gönderilecek prompt
-    # Mistral 'instruction' formatını sever.
+    # Prompt
     prompt = f"""<s>[INST] Sen yardımsever bir İngilizce öğretmenisin.
     Öğrenci '{word}' kelimesini kullanarak şu cümleyi kurdu: "{sentence}"
 
@@ -28,17 +27,16 @@ def get_ai_feedback(word, sentence):
     payload = {
         "inputs": prompt,
         "parameters": {
-            "max_new_tokens": 250,  # Cevap uzunluğu
-            "return_full_text": False,  # Sadece cevabı ver, soruyu tekrar etme
+            "max_new_tokens": 250,
+            "return_full_text": False,
             "temperature": 0.7
         }
     }
 
     try:
-        response = requests.post(API_URL, headers=headers, json=payload, timeout=10)
+        response = requests.post(API_URL, headers=headers, json=payload, timeout=20)  # Süreyi biraz uzattım (20sn)
 
         if response.status_code == 200:
-            # Hugging Face liste içinde sözlük döndürür
             result = response.json()
             if isinstance(result, list) and len(result) > 0:
                 return result[0]['generated_text']
@@ -46,7 +44,7 @@ def get_ai_feedback(word, sentence):
                 return "Cevap boş döndü."
 
         elif "loading" in response.text.lower():
-            return "⏳ Model şu an uyanıyor, 10 saniye sonra tekrar bas!"
+            return "⏳ Model şu an uyanıyor, sunucu soğuk. 20 saniye sonra tekrar bas çalışacak!"
 
         else:
             return f"Hata oluştu: {response.status_code} - {response.text}"
