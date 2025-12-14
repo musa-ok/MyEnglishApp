@@ -14,19 +14,18 @@ try:
 except Exception as e:
     st.error(f"DB Hatası: {e}")
 
-# --- CSS (DÜZELTİLDİ: Padding Arttırıldı) ---
+# --- CSS ---
 st.markdown("""
 <style>
     .stApp { background-color: #0E1117; }
 
-    /* DÜZELTİLEN KISIM: Sayfanın tepesine boşluk verdik */
+    /* Sayfa üst boşluğunu ayarladık */
     .block-container { 
-        padding-top: 3.5rem !important; /* Eskiden 1rem'di, şimdi 3.5rem yaptık */
+        padding-top: 3.5rem !important; 
         padding-bottom: 2rem !important; 
         max-width: 800px; 
     }
 
-    /* Kart Tasarımı */
     .card-container {
         background: linear-gradient(135deg, #161b22 0%, #0d1117 100%);
         border: 1px solid #30363D;
@@ -58,11 +57,7 @@ st.markdown("""
 
     .stProgress > div > div > div > div { background-color: #58A6FF; }
 
-    /* Tablo Başlıklarını Belirginleştir */
-    button[data-baseweb="tab"] {
-        font-size: 18px !important;
-        font-weight: bold !important;
-    }
+    button[data-baseweb="tab"] { font-size: 18px !important; font-weight: bold !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -118,8 +113,13 @@ else:
             tot = data['total'] if data['total'] > 0 else 1
             lrn = data['learned']
             ratio = lrn / tot
+
             st.markdown(f"**{lvl}:** {lrn} / {tot} (%{int(ratio * 100)})")
-            st.progress(ratio)
+
+            # --- HATA BURADAYDI, DÜZELTİLDİ ---
+            # Ratio 1.0'dan büyük olursa çökmesin diye min() kullandık
+            safe_ratio = min(ratio, 1.0)
+            st.progress(safe_ratio)
 
         st.divider()
 
@@ -252,7 +252,6 @@ else:
 
     # --- 4. LİSTEM ---
     elif menu == "📚 Listem":
-        # Sekmeleri biraz aşağıya almak için CSS'te padding-top arttırdık.
         t1, t2 = st.tabs(["✅ Ezber", "🤔 Tekrar"])
         with t1:
             w = db.get_learned_words(user_id)
