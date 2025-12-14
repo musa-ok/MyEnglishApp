@@ -13,7 +13,7 @@ def init_db():
     conn = create_connection()
     c = conn.cursor()
 
-    # Tabloları oluştur
+    # Tablolar
     c.execute('''CREATE TABLE IF NOT EXISTS users 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   username TEXT UNIQUE, 
@@ -21,7 +21,7 @@ def init_db():
                   xp INTEGER DEFAULT 0,
                   streak INTEGER DEFAULT 0,
                   last_login TEXT,
-                  target_level TEXT DEFAULT 'B2')''')  # Yeni sütun eklendi
+                  target_level TEXT DEFAULT 'B2')''')
 
     c.execute('''CREATE TABLE IF NOT EXISTS words 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
@@ -38,30 +38,31 @@ def init_db():
                   FOREIGN KEY(user_id) REFERENCES users(id),
                   FOREIGN KEY(word_id) REFERENCES words(id))''')
 
-    # Eski kullanıcılarda 'target_level' yoksa ekle (Migration)
+    # Sütun kontrolleri (Eski veritabanları bozulmasın diye)
     try:
         c.execute("ALTER TABLE users ADD COLUMN target_level TEXT DEFAULT 'B2'")
     except:
-        pass  # Zaten varsa hata vermesin
-
+        pass
     try:
         c.execute("ALTER TABLE users ADD COLUMN streak INTEGER DEFAULT 0")
+    except:
+        pass
+    try:
         c.execute("ALTER TABLE users ADD COLUMN last_login TEXT")
     except:
         pass
 
-    conn.commit()
+    conn.commit();
     conn.close()
 
 
-# --- KULLANICI İŞLEMLERİ ---
+# --- KULLANICI ---
 def register_user(username, password):
     conn = create_connection();
     c = conn.cursor()
     hashed_pw = hashlib.sha256(password.encode()).hexdigest()
     today = date.today().isoformat()
     try:
-        # Varsayılan seviye B2
         c.execute("INSERT INTO users (username, password, streak, last_login, target_level) VALUES (?, ?, 1, ?, 'B2')",
                   (username, hashed_pw, today))
         conn.commit();
@@ -78,13 +79,11 @@ def login_user(username, password):
     hashed_pw = hashlib.sha256(password.encode()).hexdigest()
     c.execute("SELECT * FROM users WHERE username=? AND password=?", (username, hashed_pw))
     user = c.fetchone()
-
     if user:
-        uid = user[0]
-        curr_streak = user[4] if user[4] else 0
-        last_login = user[5]
+        uid = user[0];
+        curr_streak = user[4] if user[4] else 0;
+        last_login = user[5];
         today = date.today()
-
         new_streak = curr_streak
         if last_login:
             l_date = datetime.strptime(last_login, "%Y-%m-%d").date()
@@ -94,18 +93,14 @@ def login_user(username, password):
                 new_streak = 1
         else:
             new_streak = 1
-
         c.execute("UPDATE users SET streak=?, last_login=? WHERE id=?", (new_streak, today.isoformat(), uid))
         conn.commit()
-        # Güncel kullanıcıyı tekrar çek
         c.execute("SELECT * FROM users WHERE id=?", (uid,))
         user = c.fetchone()
-
-    conn.close()
+    conn.close();
     return user
 
 
-# --- SEVİYE GÜNCELLEME ---
 def update_target_level(user_id, new_level):
     conn = create_connection();
     c = conn.cursor()
@@ -119,15 +114,12 @@ def get_user_stats(user_id):
     c = conn.cursor()
     c.execute("SELECT count(*) FROM user_progress WHERE user_id=? AND status='learned'", (user_id,))
     learned = c.fetchone()[0]
-    # target_level bilgisini de çekiyoruz (user tablosundaki 6. indeks, veritabanı yapına göre değişebilir ama genelde sondadır)
     c.execute("SELECT xp, streak, target_level FROM users WHERE id=?", (user_id,))
     res = c.fetchone()
     conn.close()
-    # learned_count, xp, streak, target_level
     return learned, res[0], res[1], (res[2] if res[2] else 'B2')
 
 
-# --- DİĞER FONKSİYONLAR ---
 def add_xp(user_id, amount):
     conn = create_connection();
     c = conn.cursor()
@@ -161,12 +153,12 @@ def get_level_progress(user_id):
     return stats
 
 
+# --- KELİME & QUIZ ---
 def get_new_word_for_user(user_id, target_levels=None):
     conn = create_connection();
     c = conn.cursor()
     if target_levels:
         placeholders = ','.join(['?'] * len(target_levels))
-        # learned olmayanları getir (needs_review veya hiç görülmemiş)
         query = f'''SELECT * FROM words WHERE id NOT IN (SELECT word_id FROM user_progress WHERE user_id = ? AND status='learned') AND level IN ({placeholders}) ORDER BY RANDOM() LIMIT 1'''
         params = [user_id] + target_levels
         c.execute(query, params)
@@ -203,12 +195,12 @@ def mark_word_learned(user_id, word_id):
     conn.close()
 
 
+# --- QUIZ MANTIĞI (SADECE TEKRAR LİSTESİ) ---
 def get_quiz_question(user_id, target_levels=None):
     conn = create_connection();
     c = conn.cursor()
     word = None
 
-    # Sadece 'needs_review' (Tekrar Listesi) olanları çekiyoruz
     params = [user_id]
     level_filter = ""
     if target_levels:
@@ -216,44 +208,32 @@ def get_quiz_question(user_id, target_levels=None):
         level_filter = f"AND w.level IN ({placeholders})"
         params += target_levels
 
-    # SADECE TEKRAR GEREKENLERDEN SOR
+    # SADECE 'needs_review' olanları getir
     c.execute(f'''SELECT w.* FROM words w 
                   JOIN user_progress up ON w.id = up.word_id 
                   WHERE up.user_id = ? AND up.status = 'needs_review' {level_filter} 
                   ORDER BY RANDOM() LIMIT 1''', params)
     word = c.fetchone()
 
-    # Eğer kelime yoksa (Liste boşsa) None dön
     if not word:
-        conn.close()
+        conn.close();
         return None
 
-    # Şıkları oluştur (Yanlış şıklar rastgele herhangi bir yerden gelebilir)
+    # Şıklar
     c.execute("SELECT turkish FROM words WHERE id != ? ORDER BY RANDOM() LIMIT 3", (word[0],))
     wrong_opts = [r[0] for r in c.fetchall()]
-    conn.close()
+    while len(wrong_opts) < 3: wrong_opts.append("...")  # Hata önleyici
 
-    return {
-        "id": word[0],
-        "english": word[1],
-        "correct_answer": word[2],
-        "options": wrong_opts + [word[2]]
-    }
+    conn.close()
+    return {"id": word[0], "english": word[1], "correct_answer": word[2], "options": wrong_opts + [word[2]]}
+
 
 def get_learned_words(user_id):
-    conn = create_connection(); c = conn.cursor()
-    # DİKKAT: En başa w.id ekledim
-    c.execute("SELECT w.id, w.english, w.turkish, w.level, w.pos, w.example_sentence FROM words w JOIN user_progress up ON w.id = up.word_id WHERE up.user_id = ? AND up.status = 'learned'", (user_id,))
-    res = c.fetchall(); conn.close(); return res
-
-
-def get_review_words(user_id):
     conn = create_connection();
     c = conn.cursor()
     c.execute(
-        "SELECT w.english, w.turkish, w.level, w.pos, w.example_sentence FROM words w JOIN user_progress up ON w.id = up.word_id WHERE up.user_id = ? AND up.status = 'needs_review'",
+        "SELECT w.id, w.english, w.turkish, w.level, w.pos, w.example_sentence FROM words w JOIN user_progress up ON w.id = up.word_id WHERE up.user_id = ? AND up.status = 'learned'",
         (user_id,))
     res = c.fetchall();
     conn.close();
     return res
-#Guncelleme
