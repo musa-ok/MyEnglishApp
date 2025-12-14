@@ -19,11 +19,10 @@ st.markdown("""
 <style>
     .stApp { background-color: #0E1117; }
 
-    /* Sayfa kenar boşluklarını ayarla */
     .block-container {
         padding-top: 2rem !important;
         padding-bottom: 2rem !important;
-        max-width: 800px; /* PC'de çok yayılmasın */
+        max-width: 800px;
     }
 
     /* --- KART TASARIMI --- */
@@ -32,7 +31,7 @@ st.markdown("""
         border: 1px solid #30363D;
         border-radius: 24px;
         padding: 40px 20px;
-        min-height: 280px; /* Sabit yükseklik */
+        min-height: 280px;
         display: flex;
         flex-direction: column;
         justify-content: center;
@@ -49,7 +48,6 @@ st.markdown("""
         box-shadow: 0 15px 40px rgba(88, 166, 255, 0.1);
     }
 
-    /* Yazı Stilleri */
     .word-main {
         font-size: 48px;
         font-weight: 800;
@@ -59,12 +57,7 @@ st.markdown("""
         margin-bottom: 10px;
     }
 
-    .word-meaning {
-        font-size: 42px;
-        font-weight: 700;
-        color: #7EE787;
-        margin-bottom: 10px;
-    }
+    .word-meaning { font-size: 42px; font-weight: 700; color: #7EE787; margin-bottom: 10px; }
 
     .meta-info {
         font-size: 14px;
@@ -76,18 +69,14 @@ st.markdown("""
         display: inline-block;
     }
 
-    /* Butonları Güzelleştir */
     div.stButton > button {
         border-radius: 12px;
         font-weight: 600;
         border: 1px solid #30363D;
-        height: 55px; /* Buton yüksekliği */
+        height: 55px;
         transition: all 0.2s;
     }
     div.stButton > button:active { transform: scale(0.96); }
-
-    /* Çevir Butonu (Özel) */
-    .flip-btn { border-color: #58A6FF !important; color: #58A6FF !important; }
 
 </style>
 """, unsafe_allow_html=True)
@@ -137,10 +126,11 @@ else:
         st.write(f"👤 **{st.session_state.user[1]}**")
         st.write(f"🔥 {streak} Gün | ⭐ {xp} XP")
         st.divider()
-        menu = st.radio("Menü", ["⚡ Çalış", "🏆 Quiz", "📚 Listem"])
+        # LİDERLER BURAYA EKLENDİ 👇
+        menu = st.radio("Menü", ["⚡ Çalış", "🏆 Quiz", "🥇 Liderler", "📚 Listem"])
         if st.button("Çıkış"): st.session_state.user = None; st.rerun()
 
-    # --- 1. ÇALIŞMA KARTLARI (PREMIUM) ---
+    # --- 1. ÇALIŞMA KARTLARI ---
     if menu == "⚡ Çalış":
         active_levels = ["A1", "A2", "B1", "B2"]
 
@@ -153,9 +143,7 @@ else:
         if w:
             wid, eng, tur, lvl, pos, ex = w if len(w) == 6 else (*w, "Kelime", "-")
 
-            # Kartın Durumu
             if not st.session_state.is_flipped:
-                # ÖN YÜZ
                 html_content = f"""
                 <div class="card-container">
                     <div style="font-size:14px; color:#8b949e; margin-bottom:15px;">İNGİLİZCESİ</div>
@@ -165,7 +153,6 @@ else:
                 """
                 btn_label = "🔄 Kartı Çevir"
             else:
-                # ARKA YÜZ
                 html_content = f"""
                 <div class="card-container" style="border-color: #7EE787;">
                     <div style="font-size:14px; color:#8b949e; margin-bottom:15px;">ANLAMI</div>
@@ -175,19 +162,15 @@ else:
                 """
                 btn_label = "🔄 Ön Yüze Dön"
 
-            # 1. KARTI GÖSTER
             st.markdown(html_content, unsafe_allow_html=True)
 
-            # 2. ÇEVİRME BUTONU (Ortada ve Geniş)
             if st.button(btn_label, use_container_width=True):
                 st.session_state.is_flipped = not st.session_state.is_flipped
                 st.rerun()
 
-            st.write("")  # Küçük boşluk
+            st.write("")
 
-            # 3. AKSİYONLAR (Tek Satır - Sıkıştırılmış)
             c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
-
             with c1:
                 if st.button("🔊", help="Dinle", use_container_width=True):
                     autoplay_audio(eng)
@@ -217,17 +200,24 @@ else:
         else:
             st.success("Tebrikler! Bu seviyeyi bitirdin.")
 
-    # --- 2. QUIZ ---
+    # --- 2. QUIZ (HATA DÜZELTİLDİ) ---
     elif menu == "🏆 Quiz":
+        # Veri kontrolü ve temizliği
         if 'quiz_data' not in st.session_state or st.session_state.quiz_data is None:
             st.session_state.quiz_data = db.get_quiz_question(user_id, ["A1", "A2", "B1", "B2"])
             if st.session_state.quiz_data:
-                opts = st.session_state.quiz_data['options'];
-                random.shuffle(opts)
-                st.session_state.quiz_data['shuffled'] = opts
+                # Veri dict tipinde mi kontrol et, değilse düzelt
+                if isinstance(st.session_state.quiz_data, dict):
+                    opts = st.session_state.quiz_data['options']
+                    random.shuffle(opts)
+                    st.session_state.quiz_data['shuffled'] = opts
+                else:
+                    st.session_state.quiz_data = None  # Bozuk veriyi sil
 
         q = st.session_state.quiz_data
-        if q:
+
+        # Ekstra güvenlik: q bir sözlük olmalı ve 'options' içermeli
+        if q and isinstance(q, dict) and 'shuffled' in q:
             st.markdown(
                 f"<div style='text-align:center; padding:30px; background:#1e2329; border-radius:20px; margin-bottom:20px; border:1px solid #30363D;'><h1 style='color:#F2CC60; margin:0;'>{q['english'].upper()}</h1></div>",
                 unsafe_allow_html=True)
@@ -250,9 +240,31 @@ else:
                         st.rerun()
             if st.button("Pas Geç", use_container_width=True): st.session_state.quiz_data = None; st.rerun()
         else:
-            st.info("Quiz için kelime yok.")
+            st.info("Quiz için uygun kelime bulunamadı veya veri yükleniyor...")
+            if st.button("Tekrar Dene"): st.session_state.quiz_data = None; st.rerun()
 
-    # --- 3. LİSTEM ---
+    # --- 3. LİDERLER (GERİ GELDİ) ---
+    elif menu == "🥇 Liderler":
+        st.subheader("🏆 Şampiyonlar Ligi")
+        leaders = db.get_leaderboard()
+        for i, (u, x, s) in enumerate(leaders):
+            bg = "#1f2428" if u != st.session_state.user[1] else "#263645"
+            border = "1px solid #30363D" if u != st.session_state.user[1] else "2px solid #58A6FF"
+            icon = ["🥇", "🥈", "🥉"][i] if i < 3 else "🎖️"
+            st.markdown(f"""
+            <div style='background:{bg}; border:{border}; padding:15px; border-radius:12px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;'>
+                <div style='display:flex; align-items:center; gap:10px;'>
+                    <span style='font-size:24px;'>{icon}</span>
+                    <span style='font-weight:bold; color:#c9d1d9;'>{u}</span>
+                </div>
+                <div style='text-align:right;'>
+                    <div style='color:#F2CC60; font-weight:bold;'>{x} XP</div>
+                    <div style='font-size:12px; color:#8b949e;'>🔥 {s} gün</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    # --- 4. LİSTEM ---
     elif menu == "📚 Listem":
         t1, t2 = st.tabs(["✅ Ezber", "🤔 Tekrar"])
         with t1:
