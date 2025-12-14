@@ -10,8 +10,6 @@ st.set_page_config(page_title="Oxford 3000 Coach", page_icon="🇬🇧", layout=
 
 try:
     db.init_db()
-    # --- ÖZEL YÜKLEME ---
-    # Eğer giriş yapan Ghost ise verileri kontrol et ve yükle
     db.inject_ghost_data("Ghost")
 except Exception as e:
     st.error(f"DB Hatası: {e}")
@@ -241,18 +239,19 @@ else:
             w = db.get_learned_words(user_id)
             if w:
                 st.caption(f"{len(w)} kelime")
-                for i in w:
+                # HATA BURADAYDI, ENUMERATE VE UNIQ KEY İLE ÇÖZÜLDÜ
+                for idx, i in enumerate(w):
                     c1, c2 = st.columns([4, 1]);
                     c1.markdown(f"**{i[1]}**: {i[2]}")
-                    if c2.button("♻️", key=f"r_{i[0]}"): db.mark_word_needs_review(user_id, i[0]); st.rerun()
+                    if c2.button("♻️", key=f"r_{i[0]}_{idx}"): db.mark_word_needs_review(user_id, i[0]); st.rerun()
         with t2:
             r = db.create_connection().cursor().execute(
-                "SELECT w.id, w.english, w.turkish FROM words w JOIN user_progress up ON w.id = up.word_id WHERE up.user_id = ? AND up.status = 'needs_review'",
+                "SELECT DISTINCT w.id, w.english, w.turkish FROM words w JOIN user_progress up ON w.id = up.word_id WHERE up.user_id = ? AND up.status = 'needs_review'",
                 (user_id,)).fetchall()
             if r:
-                for i in r:
+                for idx, i in enumerate(r):
                     c1, c2 = st.columns([4, 1]);
                     c1.markdown(f"🔴 **{i[1]}**: {i[2]}")
-                    if c2.button("✅", key=f"l_{i[0]}"): db.mark_word_learned(user_id, i[0]); st.rerun()
+                    if c2.button("✅", key=f"l_{i[0]}_{idx}"): db.mark_word_learned(user_id, i[0]); st.rerun()
             else:
                 st.success("Temiz!")
