@@ -1,3 +1,14 @@
-.venv/
+# --- GİZLİ ŞİFRELER (Çok Önemli) ---
 .env
+
+# --- VERİTABANI VE YEDEK DOSYALAR ---
+vocab.db
+oxford.txt
+
+# --- GEREKSİZ SİSTEM DOSYALARI ---
 __pycache__/
+*.pyc
+.idea/
+.venv/
+env/
+.DS_Store
