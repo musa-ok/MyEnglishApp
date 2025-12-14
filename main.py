@@ -16,13 +16,12 @@ try:
 except Exception as e:
     st.error(f"DB Hatası: {e}")
 
-# --- CSS (Makyaj) ---
+# --- CSS ---
 st.markdown("""
 <style>
     .stApp { background-color: #0E1117; color: #FAFAFA; }
     [data-testid="stSidebar"] { background-color: #161B22; border-right: 1px solid #30363D; }
 
-    /* Kart Tasarımı */
     .card-container {
         background: linear-gradient(145deg, #1e2329, #161b22);
         padding: 30px 20px;
@@ -36,21 +35,20 @@ st.markdown("""
     .english-word { color: #58A6FF !important; font-size: 48px; font-weight: 800; margin: 10px 0; text-shadow: 0 0 10px rgba(88, 166, 255, 0.3); }
     @media (max-width: 600px) { .english-word { font-size: 36px; } .card-container { padding: 20px 10px; } }
 
-    /* İnteraktif Liste Kartı */
-    .list-card {
+    .list-item {
         background-color: #161b22;
         border: 1px solid #30363d;
-        padding: 15px;
-        border-radius: 10px;
+        padding: 12px;
+        border-radius: 12px;
         margin-bottom: 10px;
-        transition: 0.2s;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
     }
-    .list-card:hover { border-color: #58A6FF; }
 
     .stTextInput input, .stTextArea textarea { background-color: #0d1117 !important; color: #c9d1d9 !important; border: 1px solid #30363D !important; border-radius: 12px; }
     .stButton button { border-radius: 12px; font-weight: 600; width: 100%; transition: transform 0.1s; }
     .stButton button:active { transform: scale(0.98); }
-
     .badge { display: inline-block; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; margin: 4px; color: #000 !important; }
     .badge-level { background-color: #D2A8FF; } .badge-pos { background-color: #7EE787; }
     .score-box { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 15px; border-radius: 15px; text-align: center; margin-bottom: 20px; }
@@ -114,7 +112,6 @@ else:
     user_id = st.session_state.user[0];
     username = st.session_state.user[1]
 
-    # İstatistikler
     learned_count, xp, streak, db_target_level = db.get_user_stats(user_id)
     rank_title, min_xp, max_xp = get_user_rank(xp)
     level_stats = db.get_level_progress(user_id)
@@ -220,8 +217,7 @@ else:
                     st.rerun()
 
         else:
-            st.success(
-                "Bu seviyedeki tüm kelimeleri bitirdin! Veritabanı boşsa lütfen yerel bilgisayarından 'vocab.db' dosyasını zorla (force) yükle.")
+            st.success("Bu seviyedeki tüm kelimeleri bitirdin!")
 
     # --- 2. QUIZ ---
     elif menu == "🏆 Quiz":
@@ -272,53 +268,43 @@ else:
                 f"""<div style='background:{bg}; border:{border}; padding:15px; border-radius:12px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;'><div style='display:flex; align-items:center; gap:10px;'><span style='font-size:24px;'>{icon}</span><span style='font-weight:bold; color:#c9d1d9;'>{u}</span></div><div style='text-align:right;'><div style='color:#F2CC60; font-weight:bold;'>{x} XP</div><div style='font-size:12px; color:#8b949e;'>🔥 {s} gün</div></div></div>""",
                 unsafe_allow_html=True)
 
-    # --- 4. LİSTEM (YENİLENDİ: İNTERAKTİF) ---
+    # --- 4. LİSTEM (FİNAL) ---
     elif menu == "📚 Listem":
         t1, t2 = st.tabs(["✅ Ezberlenenler", "🤔 Tekrar Listesi"])
 
-        # --- TAB 1: EZBERLENENLER ---
+        # --- TAB 1: EZBERLENENLER (GERİ DÖNÜŞ EKLENDİ) ---
         with t1:
             learned_words = db.get_learned_words(user_id)
             if not learned_words:
                 st.info("Henüz ezberlenen kelime yok.")
             else:
-                st.write(f"Toplam {len(learned_words)} kelime ezberledin.")
+                st.write(f"**Toplam:** {len(learned_words)} kelime")
                 for w in learned_words:
-                    # w: (Eng, Tur, Level, Pos, Ex)
-                    # Kelimeyi veritabanından ID'si ile bulmamız lazım ama şu an get_learned_words ID döndürmüyor.
-                    # Pratik olsun diye doğrudan İngilizce kelime ile işlem yapalım ama ID daha güvenli.
-                    # Şimdilik görsel olarak listeleyelim, buton için ID lazım.
-                    # get_learned_words fonksiyonunu değiştirmemek için veriyi dataframe gibi değil manuel basıyoruz.
+                    # w: (id, English, Turkish, Level, Pos, Ex) -> Artık ID var!
+                    wid, eng, tur, lvl, pos, ex = w
 
-                    with st.container():
+                    col_txt, col_btn = st.columns([4, 1])
+                    with col_txt:
                         st.markdown(f"""
-                         <div class="list-card">
-                            <div style="display:flex; justify-content:space-between; align-items:center;">
-                                <div>
-                                    <span style="font-size:20px; color:#58A6FF; font-weight:bold;">{w[0]}</span>
-                                    <span style="color:#aaa;"> - {w[1]}</span>
-                                    <br><span style="font-size:12px; color:#666;">{w[2]} • {w[3]}</span>
-                                </div>
+                        <div class="list-item">
+                            <div>
+                                <span style="font-size:18px; color:#58A6FF; font-weight:bold;">{eng}</span>
+                                <span style="color:#ccc;"> : {tur}</span>
+                                <div style="font-size:12px; color:#666; margin-top:4px;">{lvl} • {pos}</div>
                             </div>
-                         </div>
-                         """, unsafe_allow_html=True)
+                        </div>
+                        """, unsafe_allow_html=True)
+                    with col_btn:
+                        # Tekrar Et Butonu
+                        if st.button("♻️ Tekrar", key=f"rev_{wid}"):
+                            db.mark_word_needs_review(user_id, wid)
+                            st.toast(f"{eng} tekrar listesine atıldı!", icon="u267b")
+                            time.sleep(0.5)
+                            st.rerun()
 
-                        # Buraya ID lazım olduğu için DB'den kelime ID'sini bulup işlem yapmak lazım.
-                        # Ancak basitlik adına burada sadece görüntüleme yapıp,
-                        # İstersen bir sonraki adımda `get_learned_words` fonksiyonuna ID ekleyebiliriz.
-                        # Şimdilik kullanıcıya sadece listeyi gösterelim.
-                        # BUTON EKLEMEK İÇİN: database.py'de get_learned_words ID döndürmeli.
-                        # O yüzden şimdilik buton eklemiyorum, "ID yok" hatası alırsın.
-                        # (Eğer buton istiyorsan database.py'yi de güncellememiz gerekir).
-                        pass
-
-        # --- TAB 2: TEKRAR LİSTESİ VE ALIŞTIRMALAR ---
+        # --- TAB 2: TEKRAR LİSTESİ ---
         with t2:
-            review_words = db.get_review_words(user_id)
-            # Buradaki review_words de ID döndürmüyor.
-            # Hızlı çözüm: Database sorgusunu burada manuel yapıp ID alalım.
-
-            # Doğrudan DB bağlantısı ile ID'li veriyi çekelim
+            # Burayı da manuel ID ile çekiyoruz
             conn = db.create_connection()
             c = conn.cursor()
             c.execute(
@@ -328,40 +314,23 @@ else:
             conn.close()
 
             if not r_data:
-                st.success("Tekrar listen tertemiz! Harikasın. 🎉")
+                st.success("Tekrar listen tertemiz! 🎉")
             else:
                 st.info(f"{len(r_data)} kelime tekrar bekliyor.")
                 for item in r_data:
                     wid, eng, tur, ex = item
 
-                    # Kelime Kartı
-                    with st.expander(f"🔴 {eng} ({tur}) - Çalış", expanded=False):
-                        col_act1, col_act2 = st.columns([2, 1])
-
-                        with col_act1:
+                    with st.expander(f"🔴 {eng} ({tur})", expanded=False):
+                        c1, c2 = st.columns([3, 1])
+                        with c1:
                             st.write(f"**Örnek:** {ex}")
-
-                            # Etkinlik: Boşluk Doldurma
-                            # Örnek cümlede kelimeyi gizle
-                            hidden_ex = ex.replace(eng, "_____").replace(eng.lower(), "_____").replace(eng.capitalize(),
-                                                                                                       "_____")
-                            st.caption("Boşluğu tamamla:")
-                            st.markdown(f"_{hidden_ex}_")
-
-                            user_guess = st.text_input("Kelime:", key=f"g_{wid}")
-                            if user_guess:
-                                if user_guess.lower().strip() == eng.lower().strip():
-                                    st.success("Doğru! 👏")
-                                else:
-                                    st.error("Tekrar dene.")
-
-                        with col_act2:
-                            st.write("Aksiyonlar:")
-                            if st.button("🔊 Dinle", key=f"s_{wid}"):
-                                autoplay_audio(eng)
-
+                            # Etkinlik
+                            hidden = ex.replace(eng, "___")
+                            st.caption(f"Boşluğu doldur: {hidden}")
+                            if st.text_input("Cevap:", key=f"in_{wid}") == eng:
+                                st.success("Doğru!")
+                        with c2:
+                            if st.button("🔊 Dinle", key=f"s_{wid}"): autoplay_audio(eng)
                             if st.button("✅ Öğrendim", key=f"L_{wid}", type="primary"):
                                 db.mark_word_learned(user_id, wid)
-                                st.toast(f"{eng} ezberlenenlere taşındı!")
-                                time.sleep(1)
                                 st.rerun()

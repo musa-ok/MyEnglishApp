@@ -231,14 +231,10 @@ def get_quiz_question(user_id, target_levels=None):
 
 
 def get_learned_words(user_id):
-    conn = create_connection();
-    c = conn.cursor()
-    c.execute(
-        "SELECT w.english, w.turkish, w.level, w.pos, w.example_sentence FROM words w JOIN user_progress up ON w.id = up.word_id WHERE up.user_id = ? AND up.status = 'learned'",
-        (user_id,))
-    res = c.fetchall();
-    conn.close();
-    return res
+    conn = create_connection(); c = conn.cursor()
+    # DİKKAT: En başa w.id ekledim
+    c.execute("SELECT w.id, w.english, w.turkish, w.level, w.pos, w.example_sentence FROM words w JOIN user_progress up ON w.id = up.word_id WHERE up.user_id = ? AND up.status = 'learned'", (user_id,))
+    res = c.fetchall(); conn.close(); return res
 
 
 def get_review_words(user_id):
