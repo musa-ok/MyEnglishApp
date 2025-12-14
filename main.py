@@ -268,11 +268,11 @@ else:
                 f"""<div style='background:{bg}; border:{border}; padding:15px; border-radius:12px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;'><div style='display:flex; align-items:center; gap:10px;'><span style='font-size:24px;'>{icon}</span><span style='font-weight:bold; color:#c9d1d9;'>{u}</span></div><div style='text-align:right;'><div style='color:#F2CC60; font-weight:bold;'>{x} XP</div><div style='font-size:12px; color:#8b949e;'>🔥 {s} gün</div></div></div>""",
                 unsafe_allow_html=True)
 
-    # --- 4. LİSTEM (FİNAL) ---
+    # --- 4. LİSTEM ---
     elif menu == "📚 Listem":
         t1, t2 = st.tabs(["✅ Ezberlenenler", "🤔 Tekrar Listesi"])
 
-        # --- TAB 1: EZBERLENENLER (GERİ DÖNÜŞ EKLENDİ) ---
+        # --- TAB 1: EZBERLENENLER ---
         with t1:
             learned_words = db.get_learned_words(user_id)
             if not learned_words:
@@ -280,7 +280,6 @@ else:
             else:
                 st.write(f"**Toplam:** {len(learned_words)} kelime")
                 for w in learned_words:
-                    # w: (id, English, Turkish, Level, Pos, Ex) -> Artık ID var!
                     wid, eng, tur, lvl, pos, ex = w
 
                     col_txt, col_btn = st.columns([4, 1])
@@ -295,16 +294,15 @@ else:
                         </div>
                         """, unsafe_allow_html=True)
                     with col_btn:
-                        # Tekrar Et Butonu
+                        # DÜZELTİLEN SATIR BURASI:
                         if st.button("♻️ Tekrar", key=f"rev_{wid}"):
                             db.mark_word_needs_review(user_id, wid)
-                            st.toast(f"{eng} tekrar listesine atıldı!", icon="u267b")
+                            st.toast(f"{eng} tekrar listesine atıldı!", icon="♻️")  # <-- Emoji düzeltildi
                             time.sleep(0.5)
                             st.rerun()
 
         # --- TAB 2: TEKRAR LİSTESİ ---
         with t2:
-            # Burayı da manuel ID ile çekiyoruz
             conn = db.create_connection()
             c = conn.cursor()
             c.execute(
@@ -324,7 +322,6 @@ else:
                         c1, c2 = st.columns([3, 1])
                         with c1:
                             st.write(f"**Örnek:** {ex}")
-                            # Etkinlik
                             hidden = ex.replace(eng, "___")
                             st.caption(f"Boşluğu doldur: {hidden}")
                             if st.text_input("Cevap:", key=f"in_{wid}") == eng:
