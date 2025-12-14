@@ -11,82 +11,98 @@ import ai_manager as ai
 # 1. AYARLAR
 st.set_page_config(page_title="Oxford 3000 AI Coach", page_icon="🇬🇧", layout="wide")
 
-# Veritabanını başlat
 try:
     db.init_db()
 except Exception as e:
-    st.error(f"Veritabanı hatası: {e}")
+    st.error(f"DB Hatası: {e}")
 
-# --- TEMA & CSS ---
+# --- GELİŞMİŞ CSS (MOBİL & ESTETİK) ---
 st.markdown("""
 <style>
-    /* Ana Arka Plan */
-    .stApp { background-color: #0E1117 !important; color: #FAFAFA !important; }
+    /* Genel Ayarlar */
+    .stApp { background-color: #0E1117; color: #FAFAFA; }
+    [data-testid="stSidebar"] { background-color: #161B22; border-right: 1px solid #30363D; }
 
-    /* Yan Menü */
-    [data-testid="stSidebar"] { background-color: #161B22 !important; border-right: 1px solid #30363D; }
-
-    /* Kart Tasarımı */
+    /* Mobil Uyumlu Kart */
     .card-container {
-        background-color: #FFFFFF !important;
-        padding: 40px;
+        background: linear-gradient(145deg, #1e2329, #161b22);
+        padding: 30px 20px;
         border-radius: 20px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        box-shadow: 5px 5px 15px #0b0d11, -5px -5px 15px #212933;
         text-align: center;
         margin-bottom: 25px;
-        color: #333 !important;
+        border: 1px solid #30363D;
+        color: #fff;
     }
 
-    /* Kelime Rengi */
-    .english-word { color: #2E86C1 !important; font-size: 60px; font-weight: 900; margin: 0; }
+    /* Kelime Stili */
+    .english-word { 
+        color: #58A6FF !important; 
+        font-size: 48px; 
+        font-weight: 800; 
+        margin: 10px 0;
+        text-shadow: 0 0 10px rgba(88, 166, 255, 0.3);
+    }
 
-    /* Inputlar */
-    .stTextInput input, .stTextArea textarea { background-color: #262730 !important; color: #FAFAFA !important; border: 1px solid #4A4A4A !important; border-radius: 10px; }
+    /* Responsive Font (Telefonda küçülsün) */
+    @media (max-width: 600px) {
+        .english-word { font-size: 36px; }
+        .card-container { padding: 20px 10px; }
+    }
 
-    /* Butonlar */
-    .stButton button { border-radius: 8px; font-weight: bold; width: 100%; }
+    /* Input Alanları */
+    .stTextInput input, .stTextArea textarea { 
+        background-color: #0d1117 !important; 
+        color: #c9d1d9 !important; 
+        border: 1px solid #30363D !important; 
+        border-radius: 12px;
+    }
+
+    /* Butonlar - Tam Genişlik ve Yuvarlak */
+    .stButton button { 
+        border-radius: 12px; 
+        font-weight: 600; 
+        width: 100%; 
+        padding: 0.5rem 1rem;
+        transition: transform 0.1s;
+    }
+    .stButton button:active { transform: scale(0.98); }
+
+    /* Özel Buton Renkleri */
+    /* Primary (Ezberledim): Yeşil */
+    /* Secondary (Emin Değilim): Turuncu */
 
     /* Rozetler */
-    .badge { display: inline-block; padding: 6px 14px; border-radius: 12px; font-size: 14px; font-weight: bold; margin: 5px; color: #fff !important; }
-    .badge-level { background-color: #F1C40F !important; color: #000 !important; }
-    .badge-pos { background-color: #E74C3C !important; }
+    .badge { 
+        display: inline-block; 
+        padding: 5px 12px; 
+        border-radius: 20px; 
+        font-size: 12px; 
+        font-weight: bold; 
+        margin: 4px; 
+        color: #000 !important;
+    }
+    .badge-level { background-color: #D2A8FF; } /* Mor */
+    .badge-pos { background-color: #7EE787; }   /* Yeşil */
 
-    /* Puan Kutusu (Sidebar) */
+    /* Puan Kutusu */
     .score-box {
-        background-color: #21262d;
-        border: 1px solid #30363d;
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.1);
         padding: 15px;
-        border-radius: 10px;
+        border-radius: 15px;
         text-align: center;
         margin-bottom: 20px;
     }
-    .score-val { font-size: 24px; font-weight: bold; color: #58a6ff; }
-    .score-label { font-size: 12px; color: #8b949e; }
+    .score-val { font-size: 28px; font-weight: 900; color: #F2CC60; }
 
-    /* İlerleme Çubuğu */
-    .level-stat { margin-bottom: 5px; font-size: 13px; color: #ccc; }
-    .stProgress > div > div > div > div { background-color: #2E86C1; }
-
-    /* Sıralama Kartı */
-    .rank-card {
-        background-color: #FFFFFF !important;
-        padding: 15px;
-        border-radius: 15px;
-        margin-bottom: 10px;
-        color: #333 !important;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-    }
-
-    /* Yazı Renkleri */
-    h1, h2, h3 { color: #3498DB !important; }
+    /* Liste Tablosu */
+    [data-testid="stDataFrame"] { border: 1px solid #30363D; border-radius: 10px; }
 </style>
 """, unsafe_allow_html=True)
 
 
-# --- RÜTBE FONKSİYONU (ZORLAŞTIRILMIŞ) ---
+# --- FONKSİYONLAR ---
 def get_user_rank(xp):
     if xp < 500:
         return "Çaylak 👶", 0, 500
@@ -101,267 +117,176 @@ def get_user_rank(xp):
 
 
 def autoplay_audio(text):
-    """Sesi arka planda otomatik çalar"""
     try:
         tts = gTTS(text=text, lang='en')
-        fp = BytesIO()
+        fp = BytesIO();
         tts.write_to_fp(fp)
-        # Sesi base64'e çevirip HTML player içine gömüyoruz
         b64 = base64.b64encode(fp.getvalue()).decode()
-        md = f"""
-            <audio autoplay="true">
-            <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
-            </audio>
-            """
+        md = f"""<audio autoplay="true"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>"""
         st.markdown(md, unsafe_allow_html=True)
     except:
-        st.toast("Ses çalınamadı (İnternet?)", icon="⚠️")
+        st.toast("Ses hatası", icon="⚠️")
 
 
-# --- OTURUM ---
-if 'user' not in st.session_state:
-    st.session_state.user = None
+# --- APP ---
+if 'user' not in st.session_state: st.session_state.user = None
 
-# ================= GİRİŞ EKRANI =================
 if not st.session_state.user:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.markdown("<h1 style='text-align: center;'>🇬🇧 Oxford 3000</h1>", unsafe_allow_html=True)
-        tab1, tab2 = st.tabs(["Giriş Yap", "Kayıt Ol"])
-        with tab1:
-            u = st.text_input("Kullanıcı Adı")
+        st.markdown("<h1 style='text-align: center; color:#58A6FF;'>🇬🇧 Oxford 3000</h1>", unsafe_allow_html=True)
+        t1, t2 = st.tabs(["Giriş", "Kayıt"])
+        with t1:
+            u = st.text_input("Kullanıcı Adı");
             p = st.text_input("Şifre", type="password")
-            if st.button("Giriş Yap"):
+            if st.button("Giriş Yap", type="primary"):
                 user = db.login_user(u, p)
                 if user:
-                    st.session_state.user = user
-                    st.success("Giriş Başarılı!")
-                    time.sleep(0.5)
-                    st.rerun()
+                    st.session_state.user = user; st.rerun()
                 else:
                     st.error("Hatalı!")
-        with tab2:
-            nu = st.text_input("Yeni Kullanıcı", key="nu")
-            np = st.text_input("Yeni Şifre", type="password", key="np")
+        with t2:
+            nu = st.text_input("Kullanıcı", key="nu");
+            np = st.text_input("Şifre", type="password", key="np")
             if st.button("Kayıt Ol"):
                 if db.register_user(nu, np):
-                    st.success("Kayıt Başarılı!")
+                    st.success("Tamam!"); st.info("Giriş yapabilirsin.")
                 else:
-                    st.error("Bu isim alınmış.")
-
-# ================= UYGULAMA İÇİ =================
+                    st.error("Alınmış.")
 else:
-    user_id = st.session_state.user[0]
+    user_id = st.session_state.user[0];
     username = st.session_state.user[1]
-
-    # İstatistikler
     learned_count, xp, streak = db.get_user_stats(user_id)
     rank_title, min_xp, max_xp = get_user_rank(xp)
     level_stats = db.get_level_progress(user_id)
 
-    # --- SIDEBAR ---
     with st.sidebar:
-        st.markdown(f"### 👋 {username}")
+        st.markdown(
+            f"<div class='score-box'><div style='font-size:12px; color:#8b949e;'>XP PUANIN</div><div class='score-val'>{xp}</div><div>{rank_title}</div></div>",
+            unsafe_allow_html=True)
+        st.markdown(
+            f"<div style='text-align:center; margin-bottom:15px; background:#21262d; padding:8px; border-radius:10px;'>🔥 {streak} Günlük Seri</div>",
+            unsafe_allow_html=True)
 
-        # 1. PUAN KUTUSU (GERİ GELDİ!)
-        st.markdown(f"""
-        <div class="score-box">
-            <div class="score-label">TOPLAM PUAN (XP)</div>
-            <div class="score-val">✨ {xp}</div>
-            <div style="margin-top:5px; font-size:12px; color:#aaa;">Sonraki Rütbe: {max_xp}</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # 2. STREAK
-        st.markdown(f"""
-        <div style="background-color:#262730; border:1px solid #333; padding:8px; border-radius:10px; text-align:center; margin-bottom:15px;">
-            <h4 style="margin:0; color:#FF5722 !important;">🔥 {streak} Günlük Seri</h4>
-        </div>
-        """, unsafe_allow_html=True)
-
-        st.info(f"Rütbe: {rank_title}")
-
-        # 3. SEVİYE SEÇİMİ
-        st.divider()
-        st.markdown("### 🎯 Hedef")
-        target_choice = st.selectbox(
-            "Seviye Seç:",
-            ["A1 (Başlangıç)", "A2 (Temel)", "B1 (Orta)", "B2 (İleri)"],
-            index=3
-        )
-
-        active_levels = []
-        if "A1" in target_choice:
-            active_levels = ["A1"]
-        elif "A2" in target_choice:
-            active_levels = ["A1", "A2"]
-        elif "B1" in target_choice:
-            active_levels = ["A1", "A2", "B1"]
-        elif "B2" in target_choice:
-            active_levels = ["A1", "A2", "B1", "B2"]
-
+        target_choice = st.selectbox("🎯 Hedef Seviye", ["A1", "A2", "B1", "B2"], index=3)
+        active_levels = ["A1"]
+        if "A2" in target_choice: active_levels += ["A2"]
+        if "B1" in target_choice: active_levels += ["A2", "B1"]
+        if "B2" in target_choice: active_levels += ["A2", "B1", "B2"]
         st.session_state.active_levels = active_levels
 
-        # 4. İLERLEME ÇUBUKLARI
         st.markdown("### 📊 İlerleme")
         for lvl in active_levels:
             stats = level_stats.get(lvl, {'total': 0, 'learned': 0})
-            total = stats['total']
-            done = stats['learned']
-            if total > 0:
-                percent = done / total
-                st.markdown(f"<div class='level-stat'><b>{lvl}</b>: {done}/{total} (%{int(percent * 100)})</div>",
-                            unsafe_allow_html=True)
-                st.progress(min(percent, 1.0))
+            if stats['total'] > 0:
+                pc = stats['learned'] / stats['total']
+                st.markdown(
+                    f"<div style='font-size:12px; display:flex; justify-content:space-between;'><span>{lvl}</span><span>%{int(pc * 100)}</span></div>",
+                    unsafe_allow_html=True)
+                st.progress(min(pc, 1.0))
 
         st.divider()
-        menu = st.radio("Menü", ["⚡ Kartlar", "🏆 Quiz", "🥇 Sıralama", "📚 Listem"])
+        menu = st.radio("Menü", ["⚡ Çalış", "🏆 Quiz", "🥇 Liderler", "📚 Listem"])
+        if st.button("Çıkış"): st.session_state.user = None; st.rerun()
 
-        st.write("")
-        if st.button("Çıkış"):
-            st.session_state.user = None
-            st.rerun()
-
-    # --- 1. KARTLAR ---
-    if menu == "⚡ Kartlar":
+    # --- 1. ÇALIŞMA KARTLARI ---
+    if menu == "⚡ Çalış":
         if 'card_word' not in st.session_state:
             st.session_state.card_word = db.get_new_word_for_user(user_id, st.session_state.active_levels)
 
-        word_data = st.session_state.card_word
+        w = st.session_state.card_word
+        if w:
+            wid, eng, tur, lvl, pos, ex = w if len(w) == 6 else (*w, "Kelime", "-")
 
-        if word_data:
-            w_id, eng, tur, lvl, pos, ex = word_data if len(word_data) == 6 else (*word_data, "Kelime", "Örnek yok")
-
-            # Kart Tasarımı
             st.markdown(f"""
             <div class="card-container">
                 <div class="english-word">{eng.upper()}</div>
-                <div style="margin-top:20px;">
+                <div>
                     <span class="badge badge-level">{lvl}</span>
                     <span class="badge badge-pos">{pos}</span>
                 </div>
             </div>
             """, unsafe_allow_html=True)
 
-            # SES ÖZELLİĞİ (Butona basınca direkt çalar)
-            # Butonu siyah zemine değil, kartın altına koyuyoruz.
-            # Butona basıldığında `play_audio` tetiklenir ve sayfa yenilenip sesi gömer.
-            if st.button("🔊 Sesi Dinle", type="secondary"):
-                autoplay_audio(eng)
+            # Mobilde butonları hizalamak için columns kullanıyoruz
+            c_audio, c_next = st.columns([1, 1])
+            with c_audio:
+                if st.button("🔊 Dinle"): autoplay_audio(eng)
+            with c_next:
+                if st.button("Sonraki ➡️"):
+                    st.session_state.card_word = db.get_new_word_for_user(user_id, st.session_state.active_levels);
+                    st.rerun()
 
-            with st.expander("🇹🇷 Türkçesi"):
-                st.markdown(f"<h3 style='color:#333 !important;'>{tur}</h3>", unsafe_allow_html=True)
-                st.info(f"Örnek: {ex}")
+            with st.expander("🇹🇷 Anlamı ve Örnek"):
+                st.markdown(f"### {tur}")
+                st.info(f"Examples: {ex}")
 
-            st.divider()
+            st.markdown("---")
 
-            sent = st.text_area("Cümle kur, puan kazan:", placeholder="I want to...")
+            # Cümle Kontrol
+            sent = st.text_area("Cümle kur (10 XP):", placeholder="I want to go...")
+            if st.button("✨ Yapay Zekaya Sor"):
+                if len(sent) > 3:
+                    with st.spinner("Hoca bakıyor..."):
+                        f = ai.get_ai_feedback(eng, sent);
+                        st.success(f);
+                        db.add_xp(user_id, 10);
+                        st.balloons()
 
-            c1, c2 = st.columns(2)
-            with c1:
-                if st.button("✨ Kontrol Et"):
-                    if len(sent) > 3:
-                        with st.spinner("İnceleniyor..."):
-                            f = ai.get_ai_feedback(eng, sent)
-                            st.info(f)
-                            db.add_xp(user_id, 10)
-                            st.balloons()
-            with c2:
-                if st.button("✅ Ezberledim (+30)", type="primary"):
-                    db.mark_word_learned(user_id, w_id)
-                    db.add_xp(user_id, 30)
-                    st.success("Ezberlendi!")
-                    time.sleep(1)
+            st.markdown("---")
+            st.caption("Bu kelimeyi ne yapalım?")
+
+            # AKSİYON BUTONLARI (MOBİL DOSTU)
+            # 3 Buton Yan Yana
+            col_unsure, col_learn = st.columns(2)
+
+            with col_unsure:
+                # Turuncu renkte 'Emin Değilim' butonu
+                if st.button("🤔 Emin Değilim\n(Listeye At)"):
+                    db.mark_word_needs_review(user_id, wid)
+                    st.toast("Tekrar listesine eklendi!", icon="📝")
+                    time.sleep(0.5)
                     st.session_state.card_word = db.get_new_word_for_user(user_id, st.session_state.active_levels)
                     st.rerun()
 
-            if st.button("Sonraki Kelime ➡️"):
-                st.session_state.card_word = db.get_new_word_for_user(user_id, st.session_state.active_levels)
-                st.rerun()
+            with col_learn:
+                # Yeşil renkte 'Ezberledim' butonu (type='primary')
+                if st.button("✅ Ezberledim\n(+30 XP)", type="primary"):
+                    db.mark_word_learned(user_id, wid)
+                    db.add_xp(user_id, 30)
+                    st.success("Süpersin!")
+                    time.sleep(0.5)
+                    st.session_state.card_word = db.get_new_word_for_user(user_id, st.session_state.active_levels)
+                    st.rerun()
+
         else:
-            st.success("Tebrikler! Seçili seviyedeki tüm kelimeler bitti!")
+            st.success("Bu seviyedeki tüm kelimeleri bitirdin!")
 
     # --- 2. QUIZ ---
     elif menu == "🏆 Quiz":
-        st.subheader("Quiz Modu")
+        st.subheader("🚀 Hızlı Quiz")
         if 'quiz_data' not in st.session_state or st.session_state.quiz_data is None:
+            # Önce 'needs_review' olanları getirir, yoksa rastgele
             st.session_state.quiz_data = db.get_quiz_question(user_id, st.session_state.active_levels)
-
             if st.session_state.quiz_data:
-                opts = st.session_state.quiz_data['options']
+                opts = st.session_state.quiz_data['options'];
                 random.shuffle(opts)
                 st.session_state.quiz_data['shuffled'] = opts
 
         q = st.session_state.quiz_data
-
         if q:
+            # Quiz Kartı
             st.markdown(f"""
-            <div class="card-container" style="padding:20px;">
-                <h1 style="color:#E67E22; margin:0;">{q['english'].upper()}</h1>
+            <div class="card-container" style="padding:15px; margin-bottom:15px;">
+                <h2 style="color:#F2CC60; margin:0;">{q['english'].upper()}</h2>
             </div>
             """, unsafe_allow_html=True)
 
-            with st.form("quiz_form"):
-                ans = st.radio("Doğru cevap hangisi?", q['shuffled'])
-                if st.form_submit_button("Cevapla"):
-                    if ans == q['correct_answer']:
-                        st.success("DOĞRU! +20 XP")
+            # Şıklar
+            cols = st.columns(2)  # 2x2 düzen
+            clicked = False
+            for i, opt in enumerate(q['shuffled']):
+                if cols[i % 2].button(opt, key=f"q_{i}", use_container_width=True):
+                    if opt == q['correct_answer']:
+                        st.success("DOĞRU! 🎉 +20 XP")
                         db.add_xp(user_id, 20)
-                        time.sleep(1.5)
-                        st.session_state.quiz_data = None
-                        st.rerun()
-                    else:
-                        st.error(f"Yanlış. Doğrusu: {q['correct_answer']}")
-                        time.sleep(2)
-                        st.session_state.quiz_data = None
-                        st.rerun()
-        else:
-            st.warning("Quiz için uygun kelime yok.")
-
-    # --- 3. SIRALAMA ---
-    elif menu == "🥇 Sıralama":
-        st.title("🏆 Liderlik Tablosu")
-        leaders = db.get_leaderboard()
-        if leaders:
-            for i, (u_name, u_xp, u_streak) in enumerate(leaders):
-                rank = i + 1
-                icon = "🏅"
-                if rank == 1:
-                    icon = "🥇"
-                elif rank == 2:
-                    icon = "🥈"
-                elif rank == 3:
-                    icon = "🥉"
-
-                border_style = "border: 2px solid #3498DB;" if u_name == username else "border: 1px solid #ddd;"
-
-                st.markdown(f"""
-                <div class="rank-card" style="{border_style}">
-                    <div style="display:flex; align-items:center; gap:15px;">
-                        <span style="font-size:30px;">{icon}</span>
-                        <div style="text-align:left;">
-                            <strong style="font-size:18px; color:#2E86C1;">{u_name}</strong>
-                            <div style="font-size:12px; color:#666;">Seri: 🔥 {u_streak} Gün</div>
-                        </div>
-                    </div>
-                    <div style="font-size:20px; font-weight:bold; color:#333;">
-                        {u_xp} XP
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-        else:
-            st.info("Liste boş.")
-
-    # --- 4. LİSTEM ---
-    elif menu == "📚 Listem":
-        st.subheader("Ezberlediğim Kelimeler")
-        l_words = db.get_learned_words(user_id)
-        if l_words:
-            df = pd.DataFrame(l_words)
-            if len(df.columns) == 5:
-                df.columns = ["İngilizce", "Türkçe", "Seviye", "Tür", "Örnek"]
-            elif len(df.columns) == 4:
-                df.columns = ["İngilizce", "Türkçe", "Seviye", "Örnek"]
-            st.dataframe(df, use_container_width=True)
-        else:
-            st.info("Listen boş.")
