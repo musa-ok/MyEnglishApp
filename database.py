@@ -13,7 +13,7 @@ def init_db():
     conn = create_connection()
     c = conn.cursor()
 
-    # Tablolar
+    # Tabloları oluştur
     c.execute('''CREATE TABLE IF NOT EXISTS users 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   username TEXT UNIQUE, 
@@ -40,6 +40,7 @@ def init_db():
                   FOREIGN KEY(word_id) REFERENCES words(id),
                   UNIQUE(user_id, word_id))''')
 
+    # Sütun güncellemeleri
     try:
         c.execute("ALTER TABLE users ADD COLUMN target_level TEXT DEFAULT 'B2'")
     except:
@@ -52,6 +53,44 @@ def init_db():
         c.execute("ALTER TABLE users ADD COLUMN last_login TEXT")
     except:
         pass
+
+    conn.commit();
+    conn.close()
+
+    # 🔥 BAŞLANGIÇTA TEMİZLİK YAP 🔥
+    clean_duplicates()
+
+
+# --- 🧹 TEMİZLİK ROBOTU 🧹 ---
+def clean_duplicates():
+    conn = create_connection();
+    c = conn.cursor()
+
+    # 1. Words tablosundaki çiftleri sil (Her kelimeden sadece en düşük ID'li olanı tut)
+    c.execute('''
+        DELETE FROM words
+        WHERE id NOT IN (
+            SELECT MIN(id)
+            FROM words
+            GROUP BY english
+        )
+    ''')
+
+    # 2. Progress tablosundaki çiftleri sil (Aynı kullanıcı-kelime eşleşmesinden 1 tane tut)
+    c.execute('''
+        DELETE FROM user_progress
+        WHERE rowid NOT IN (
+            SELECT MIN(rowid)
+            FROM user_progress
+            GROUP BY user_id, word_id
+        )
+    ''')
+
+    # 3. Silinen kelimelerin boşta kalan progress kayıtlarını temizle
+    c.execute('''
+        DELETE FROM user_progress
+        WHERE word_id NOT IN (SELECT id FROM words)
+    ''')
 
     conn.commit();
     conn.close()
@@ -114,7 +153,8 @@ def update_target_level(user_id, new_level):
 def get_user_stats(user_id):
     conn = create_connection();
     c = conn.cursor()
-    c.execute("SELECT count(DISTINCT word_id) FROM user_progress WHERE user_id=? AND status='learned'", (user_id,))
+    # Artık veritabanı temiz olduğu için DISTINCT'e bile gerek yok ama dursun
+    c.execute("SELECT count(*) FROM user_progress WHERE user_id=? AND status='learned'", (user_id,))
     learned = c.fetchone()[0]
     c.execute("SELECT xp, streak, target_level FROM users WHERE id=?", (user_id,))
     res = c.fetchone()
@@ -142,9 +182,10 @@ def get_leaderboard():
 def get_level_progress(user_id):
     conn = create_connection();
     c = conn.cursor()
-    c.execute("SELECT level, COUNT(DISTINCT english) FROM words GROUP BY level")
+    # Temizlik yapıldığı için artık gerçek sayıları verecek
+    c.execute("SELECT level, COUNT(*) FROM words GROUP BY level")
     total_counts = {row[0]: row[1] for row in c.fetchall()}
-    c.execute('''SELECT w.level, COUNT(DISTINCT w.id) FROM user_progress up 
+    c.execute('''SELECT w.level, COUNT(*) FROM user_progress up 
                  JOIN words w ON up.word_id = w.id 
                  WHERE up.user_id = ? AND up.status = 'learned' 
                  GROUP BY w.level''', (user_id,))
@@ -163,8 +204,7 @@ def get_new_word_for_user(user_id, target_levels=None, excluded_ids=None):
     conn = create_connection();
     c = conn.cursor()
 
-    # Temel Sorgu
-    query = "SELECT DISTINCT * FROM words WHERE id NOT IN (SELECT word_id FROM user_progress WHERE user_id = ? AND status='learned')"
+    query = "SELECT * FROM words WHERE id NOT IN (SELECT word_id FROM user_progress WHERE user_id = ? AND status='learned')"
     params = [user_id]
 
     if target_levels:
@@ -215,7 +255,7 @@ def get_quiz_question(user_id, target_levels=None):
         params += target_levels
 
     c.execute(
-        f'''SELECT DISTINCT w.* FROM words w JOIN user_progress up ON w.id = up.word_id WHERE up.user_id = ? AND up.status = 'needs_review' {level_filter} ORDER BY RANDOM() LIMIT 1''',
+        f'''SELECT w.* FROM words w JOIN user_progress up ON w.id = up.word_id WHERE up.user_id = ? AND up.status = 'needs_review' {level_filter} ORDER BY RANDOM() LIMIT 1''',
         params)
     word = c.fetchone()
 
@@ -232,7 +272,7 @@ def get_learned_words(user_id):
     conn = create_connection();
     c = conn.cursor()
     c.execute(
-        "SELECT DISTINCT w.id, w.english, w.turkish, w.level, w.pos, w.example_sentence FROM words w JOIN user_progress up ON w.id = up.word_id WHERE up.user_id = ? AND up.status = 'learned'",
+        "SELECT w.id, w.english, w.turkish, w.level, w.pos, w.example_sentence FROM words w JOIN user_progress up ON w.id = up.word_id WHERE up.user_id = ? AND up.status = 'learned'",
         (user_id,))
     res = c.fetchall();
     conn.close();
@@ -248,8 +288,7 @@ def inject_ghost_data(username="Ghost"):
     if not user: conn.close(); return
     user_id = user[0]
 
-    # --- SENİN LİSTEN (TEMİZLENMİŞ) ---
-    # Ezberlediklerin
+    # LİSTELER (SADELEŞTİRİLMİŞ)
     learned_list = [
         ("fuel", "yakıt"), ("track", "izlemek"), ("unemployment", "işsizlik"), ("sandwich", "sandviç"),
         ("every", "her"), ("gallery", "galeri"), ("nobody", "hiç kimse"), ("girl", "kız"), ("hide", "saklamak"),
@@ -271,8 +310,6 @@ def inject_ghost_data(username="Ghost"):
         ("cheap", "ucuz"), ("eleven", "on bir"), ("thank", "teşekkür etmek"), ("nut", "ceviz"), ("coffee", "kahve")
     ]
 
-    # Tekrar Listesi (Kırmızı ile işaretlediklerin)
-    # Not: 'personality' ve 'pants' kelimelerini buraya aldım, ezber listesinden sildim.
     review_list = [
         ("experience", "deneyim"), ("visitor", "ziyaretçi"), ("device", "cihaz"), ("infinitive", "mastar"),
         ("field", "alan"), ("position", "konum"), ("disaster", "felaket"), ("happily", "mutlu bir şekilde"),
@@ -292,6 +329,7 @@ def inject_ghost_data(username="Ghost"):
 
     for eng, tur in learned_list:
         try:
+            # Önce kelimeyi ekle (varsa atla)
             c.execute(
                 "INSERT OR IGNORE INTO words (english, turkish, level, pos, example_sentence) VALUES (?, ?, 'A1', 'n.', '-')",
                 (eng, tur))
@@ -308,8 +346,6 @@ def inject_ghost_data(username="Ghost"):
                 (eng, tur))
             c.execute("SELECT id FROM words WHERE english=?", (eng,))
             wid = c.fetchone()[0]
-            # Tekrar listesindekileri zorla eklemiyoruz, safe_insert ile sadece yoksa ekliyoruz
-            # (İstersen burayı değiştirip her zaman resetleyebiliriz ama şimdilik güvenli kalsın)
             safe_insert(user_id, wid, 'needs_review')
         except:
             pass
