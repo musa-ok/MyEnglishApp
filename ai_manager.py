@@ -1,51 +1,53 @@
 import requests
 import json
+import streamlit as st
 
-# --- BURAYA ANAHTARINI YAPISTIR (Tırnakların içine) ---
-# Resimdeki ...WbT4 ile biten kodu buraya yapıştır
-API_KEY = "AIzaSyA8fyqzn7OGkMAepIaf_fyLbaLf5b5WbT4"
+# Google Gemini API URL'si
+URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
 
-
-# ------------------------------------------------------
 
 def get_ai_feedback(word, sentence):
     """
-    Kütüphane kullanmadan direkt Google sunucularına istek atar.
-    Bu yöntem takılma yapmaz.
+    Gemini API'ye direkt HTTP isteği atar (Kütüphanesiz).
+    Bu yöntem donma yapmaz.
     """
-    # Anahtar kontrolü
-    if not API_KEY or "BURAYA" in API_KEY:
-        return "⚠️ Hata: API Key girilmemiş! ai_manager.py dosyasını açıp şifreni yapıştır."
 
-    # Google'ın Hızlı Modeli (Gemini 1.5 Flash) adresi
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
+    # 1. API Anahtarını Al (Streamlit Secrets'tan)
+    try:
+        # Streamlit Cloud'daki "Secrets" kısmından şifreyi çeker
+        api_key = st.secrets["GOOGLE_API_KEY"]
+    except:
+        return "⚠️ Hata: API Anahtarı bulunamadı! Streamlit ayarlarından 'Secrets' kısmına GOOGLE_API_KEY ekle."
 
-    headers = {'Content-Type': 'application/json'}
-
-    # Yapay zekaya gidecek mesaj
-    prompt_text = f"""
-    Sen çok yardımsever ve eğlenceli bir İngilizce öğretmenisin.
+    # 2. Yapay Zekaya Gidecek Mesaj (Prompt)
+    prompt = f"""
+    Sen harika bir İngilizce öğretmenisin.
     Öğrenci '{word}' kelimesini kullanarak şu cümleyi kurdu: "{sentence}"
 
     Lütfen Türkçe olarak:
     1. Cümlede gramer hatası var mı?
     2. Kelime doğru anlamda kullanılmış mı?
-    3. Hata varsa düzeltilmiş halini göster.
-    4. Motive edici kısa bir yorum yap (Emoji kullan).
+    3. Hata varsa doğrusunu göster.
+    4. Kısa ve motive edici bir yorum yap (Emoji kullan).
+
+    Cevabı çok uzun tutma, özet geç.
     """
 
-    data = {
+    # 3. Veriyi Hazırla
+    payload = {
         "contents": [{
-            "parts": [{"text": prompt_text}]
+            "parts": [{"text": prompt}]
         }]
     }
 
+    headers = {'Content-Type': 'application/json'}
+
+    # 4. İsteği Gönder (Postacı Yola Çıktı 📨)
     try:
-        # İsteği gönder (Postacı yola çıktı 📨)
-        response = requests.post(url, headers=headers, data=json.dumps(data), timeout=10)
+        response = requests.post(f"{URL}?key={api_key}", headers=headers, data=json.dumps(payload), timeout=10)
 
         if response.status_code == 200:
-            # Cevap başarılı geldi, içinden metni alalım
+            # Cevap geldiyse içini açıp metni alalım
             result = response.json()
             try:
                 text = result['candidates'][0]['content']['parts'][0]['text']
@@ -53,7 +55,7 @@ def get_ai_feedback(word, sentence):
             except:
                 return "Cevap geldi ama okuyamadım. Tekrar dene."
         else:
-            return f"Bir sorun oldu. Hata Kodu: {response.status_code} (API Key'in doğru mu?)"
+            return f"Bir sorun oldu. Hata Kodu: {response.status_code} (API Key doğru mu?)"
 
     except Exception as e:
         return f"Bağlantı hatası: {str(e)}"
