@@ -13,7 +13,6 @@ def init_db():
     conn = create_connection()
     c = conn.cursor()
 
-    # Tablolar
     c.execute('''CREATE TABLE IF NOT EXISTS users 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   username TEXT UNIQUE, 
@@ -110,11 +109,10 @@ def update_target_level(user_id, new_level):
     conn.close()
 
 
-# --- SAYAÇ DÜZELTME 1: GENEL İSTATİSTİK ---
+# --- İSTATİSTİK ---
 def get_user_stats(user_id):
     conn = create_connection();
     c = conn.cursor()
-    # BURAYA DISTINCT EKLENDİ (Çift kayıtları 1 say)
     c.execute("SELECT count(DISTINCT word_id) FROM user_progress WHERE user_id=? AND status='learned'", (user_id,))
     learned = c.fetchone()[0]
     c.execute("SELECT xp, streak, target_level FROM users WHERE id=?", (user_id,))
@@ -140,22 +138,16 @@ def get_leaderboard():
     return res
 
 
-# --- SAYAÇ DÜZELTME 2: SEVİYE SAYAÇLARI ---
 def get_level_progress(user_id):
     conn = create_connection();
     c = conn.cursor()
-
-    # DISTINCT ile aynı kelimeleri tek say
     c.execute("SELECT level, COUNT(DISTINCT english) FROM words GROUP BY level")
     total_counts = {row[0]: row[1] for row in c.fetchall()}
-
-    # DISTINCT ile aynı kelimeyi 2 kere öğrenmişsen tek say
     c.execute('''SELECT w.level, COUNT(DISTINCT w.id) FROM user_progress up 
                  JOIN words w ON up.word_id = w.id 
                  WHERE up.user_id = ? AND up.status = 'learned' 
                  GROUP BY w.level''', (user_id,))
     learned_counts = {row[0]: row[1] for row in c.fetchall()}
-
     conn.close()
     stats = {}
     for lvl in ['A1', 'A2', 'B1', 'B2']:
@@ -165,28 +157,31 @@ def get_level_progress(user_id):
     return stats
 
 
-# --- KELİME İŞLEMLERİ ---
+# --- KELİME ÇEKME ---
 def get_new_word_for_user(user_id, target_levels=None):
     conn = create_connection();
     c = conn.cursor()
     if target_levels:
         placeholders = ','.join(['?'] * len(target_levels))
-        query = f'''SELECT DISTINCT * FROM words WHERE id NOT IN (SELECT word_id FROM user_progress WHERE user_id = ? AND status='learned') AND level IN ({placeholders}) ORDER BY RANDOM() LIMIT 1'''
+        query = f'''SELECT DISTINCT * FROM words WHERE id NOT IN (SELECT word_id FROM user_progress WHERE user_id = ?) AND level IN ({placeholders}) ORDER BY RANDOM() LIMIT 1'''
         params = [user_id] + target_levels
         c.execute(query, params)
     else:
-        query = '''SELECT DISTINCT * FROM words WHERE id NOT IN (SELECT word_id FROM user_progress WHERE user_id = ? AND status='learned') ORDER BY RANDOM() LIMIT 1'''
+        query = '''SELECT DISTINCT * FROM words WHERE id NOT IN (SELECT word_id FROM user_progress WHERE user_id = ?) ORDER BY RANDOM() LIMIT 1'''
         c.execute(query, (user_id,))
     word = c.fetchone()
     conn.close()
     return word
 
 
+# --- 🔥 DÜZELTİLEN KISIM: DELETE THEN INSERT ---
 def mark_word_needs_review(user_id, word_id):
     conn = create_connection();
     c = conn.cursor()
-    c.execute("INSERT OR REPLACE INTO user_progress (user_id, word_id, status) VALUES (?, ?, 'needs_review')",
-              (user_id, word_id))
+    # 1. Önce bu kelimeyle ilgili eski ne varsa SİL
+    c.execute("DELETE FROM user_progress WHERE user_id=? AND word_id=?", (user_id, word_id))
+    # 2. Sonra temiz bir 'needs_review' kaydı aç
+    c.execute("INSERT INTO user_progress (user_id, word_id, status) VALUES (?, ?, 'needs_review')", (user_id, word_id))
     conn.commit();
     conn.close()
 
@@ -194,11 +189,15 @@ def mark_word_needs_review(user_id, word_id):
 def mark_word_learned(user_id, word_id):
     conn = create_connection();
     c = conn.cursor()
-    c.execute("INSERT OR REPLACE INTO user_progress (user_id, word_id, status) VALUES (?, ?, 'learned')",
-              (user_id, word_id))
+    # 1. Önce bu kelimeyle ilgili eski ne varsa SİL
+    c.execute("DELETE FROM user_progress WHERE user_id=? AND word_id=?", (user_id, word_id))
+    # 2. Sonra temiz bir 'learned' kaydı aç
+    c.execute("INSERT INTO user_progress (user_id, word_id, status) VALUES (?, ?, 'learned')", (user_id, word_id))
     conn.commit();
     conn.close()
 
+
+# ---------------------------------------------
 
 def get_quiz_question(user_id, target_levels=None):
     conn = create_connection();
@@ -245,7 +244,6 @@ def inject_ghost_data(username="Ghost"):
     if not user: conn.close(); return
     user_id = user[0]
 
-    # --- KELİME LİSTELERİ ---
     learned_list = [("fuel", "yakıt"), ("sandwich", "sandviç"), ("every", "her"), ("gallery", "galeri"),
                     ("nobody", "hiç kimse"), ("girl", "kız"), ("hide", "saklamak"), ("dialogue", "diyalog"),
                     ("important", "önemli"), ("money", "para"), ("rule", "kural"), ("idea", "fikir"), ("song", "şarkı"),
@@ -273,15 +271,14 @@ def inject_ghost_data(username="Ghost"):
 
     for eng, tur in learned_list:
         try:
-            # EKLERKEN 'OR IGNORE' kullanıyoruz ama veritabanında zaten çift kayıt varsa
-            # yukarıdaki DISTINCT sorguları bunları eler.
             c.execute(
                 "INSERT OR IGNORE INTO words (english, turkish, level, pos, example_sentence) VALUES (?, ?, 'A1', 'n.', '-')",
                 (eng, tur))
             c.execute("SELECT id FROM words WHERE english=?", (eng,))
             wid = c.fetchone()[0]
-            c.execute("INSERT OR IGNORE INTO user_progress (user_id, word_id, status) VALUES (?, ?, 'learned')",
-                      (user_id, wid))
+            # Ghost için de temiz ekleme yapıyoruz
+            c.execute("DELETE FROM user_progress WHERE user_id=? AND word_id=?", (user_id, wid))
+            c.execute("INSERT INTO user_progress (user_id, word_id, status) VALUES (?, ?, 'learned')", (user_id, wid))
         except:
             pass
 
@@ -292,7 +289,8 @@ def inject_ghost_data(username="Ghost"):
                 (eng, tur))
             c.execute("SELECT id FROM words WHERE english=?", (eng,))
             wid = c.fetchone()[0]
-            c.execute("INSERT OR REPLACE INTO user_progress (user_id, word_id, status) VALUES (?, ?, 'needs_review')",
+            c.execute("DELETE FROM user_progress WHERE user_id=? AND word_id=?", (user_id, wid))
+            c.execute("INSERT INTO user_progress (user_id, word_id, status) VALUES (?, ?, 'needs_review')",
                       (user_id, wid))
         except:
             pass
