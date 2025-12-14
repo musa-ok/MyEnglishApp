@@ -13,6 +13,7 @@ def init_db():
     conn = create_connection()
     c = conn.cursor()
 
+    # Tablolar
     c.execute('''CREATE TABLE IF NOT EXISTS users 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   username TEXT UNIQUE, 
@@ -174,13 +175,11 @@ def get_new_word_for_user(user_id, target_levels=None):
     return word
 
 
-# --- 🔥 DÜZELTİLEN KISIM: DELETE THEN INSERT ---
+# --- BUTON İŞLEMLERİ (DELETE -> INSERT Mantığı) ---
 def mark_word_needs_review(user_id, word_id):
     conn = create_connection();
     c = conn.cursor()
-    # 1. Önce bu kelimeyle ilgili eski ne varsa SİL
     c.execute("DELETE FROM user_progress WHERE user_id=? AND word_id=?", (user_id, word_id))
-    # 2. Sonra temiz bir 'needs_review' kaydı aç
     c.execute("INSERT INTO user_progress (user_id, word_id, status) VALUES (?, ?, 'needs_review')", (user_id, word_id))
     conn.commit();
     conn.close()
@@ -189,15 +188,11 @@ def mark_word_needs_review(user_id, word_id):
 def mark_word_learned(user_id, word_id):
     conn = create_connection();
     c = conn.cursor()
-    # 1. Önce bu kelimeyle ilgili eski ne varsa SİL
     c.execute("DELETE FROM user_progress WHERE user_id=? AND word_id=?", (user_id, word_id))
-    # 2. Sonra temiz bir 'learned' kaydı aç
     c.execute("INSERT INTO user_progress (user_id, word_id, status) VALUES (?, ?, 'learned')", (user_id, word_id))
     conn.commit();
     conn.close()
 
-
-# ---------------------------------------------
 
 def get_quiz_question(user_id, target_levels=None):
     conn = create_connection();
@@ -235,7 +230,7 @@ def get_learned_words(user_id):
     return res
 
 
-# --- GHOST DATA ---
+# --- 🔥 GHOST DATA (DÜZELTİLDİ: ÜZERİNE YAZMA ENGELLENDİ) ---
 def inject_ghost_data(username="Ghost"):
     conn = create_connection();
     c = conn.cursor()
@@ -269,6 +264,15 @@ def inject_ghost_data(username="Ghost"):
                    ("purpose", "amaç"), ("informal", "resmi olmayan"), ("journey", "seyahat"), ("rise", "yükselmek"),
                    ("pocket", "cep"), ("rubbish", "zırva"), ("pair", "çift")]
 
+    # Fonksiyon: Sadece kullanıcı hiç işlem yapmamışsa ekle
+    def safe_insert(u_id, w_id, stat):
+        # Kontrol et: Bu kullanıcı bu kelimeyle ilgili herhangi bir kayda sahip mi?
+        c.execute("SELECT 1 FROM user_progress WHERE user_id=? AND word_id=?", (u_id, w_id))
+        exists = c.fetchone()
+        if not exists:
+            # Kayıt yoksa ekle (Güvenli)
+            c.execute("INSERT INTO user_progress (user_id, word_id, status) VALUES (?, ?, ?)", (u_id, w_id, stat))
+
     for eng, tur in learned_list:
         try:
             c.execute(
@@ -276,9 +280,8 @@ def inject_ghost_data(username="Ghost"):
                 (eng, tur))
             c.execute("SELECT id FROM words WHERE english=?", (eng,))
             wid = c.fetchone()[0]
-            # Ghost için de temiz ekleme yapıyoruz
-            c.execute("DELETE FROM user_progress WHERE user_id=? AND word_id=?", (user_id, wid))
-            c.execute("INSERT INTO user_progress (user_id, word_id, status) VALUES (?, ?, 'learned')", (user_id, wid))
+            # BURADA KONTROLLÜ EKLEME YAPIYORUZ
+            safe_insert(user_id, wid, 'learned')
         except:
             pass
 
@@ -289,9 +292,8 @@ def inject_ghost_data(username="Ghost"):
                 (eng, tur))
             c.execute("SELECT id FROM words WHERE english=?", (eng,))
             wid = c.fetchone()[0]
-            c.execute("DELETE FROM user_progress WHERE user_id=? AND word_id=?", (user_id, wid))
-            c.execute("INSERT INTO user_progress (user_id, word_id, status) VALUES (?, ?, 'needs_review')",
-                      (user_id, wid))
+            # BURADA KONTROLLÜ EKLEME YAPIYORUZ
+            safe_insert(user_id, wid, 'needs_review')
         except:
             pass
 
