@@ -16,7 +16,7 @@ try:
 except Exception as e:
     st.error(f"DB Hatası: {e}")
 
-# --- CSS (AYNI) ---
+# --- CSS ---
 st.markdown("""
 <style>
     .stApp { background-color: #0E1117; color: #FAFAFA; }
@@ -100,7 +100,7 @@ else:
     user_id = st.session_state.user[0];
     username = st.session_state.user[1]
 
-    # İstatistikleri ve HEDEF SEVİYEYİ çekiyoruz
+    # İstatistikler
     learned_count, xp, streak, db_target_level = db.get_user_stats(user_id)
     rank_title, min_xp, max_xp = get_user_rank(xp)
     level_stats = db.get_level_progress(user_id)
@@ -113,25 +113,19 @@ else:
             f"<div style='text-align:center; margin-bottom:15px; background:#21262d; padding:8px; border-radius:10px;'>🔥 {streak} Günlük Seri</div>",
             unsafe_allow_html=True)
 
-        # --- SEVİYE AYARI (OTOMATİK HATIRLAMA) ---
+        # SEVİYE AYARI
         level_options = ["A1", "A2", "B1", "B2"]
-        # Veritabanındaki kayıtlı seviyeyi bul, yoksa varsayılanı al
         try:
             default_index = level_options.index(db_target_level)
         except:
-            default_index = 3  # Bulamazsa B2
+            default_index = 3
 
-        # Selectbox değişince hemen veritabanına kaydetmesi için callback yok ama kontrol edip güncelleyeceğiz
         selected_level_short = st.selectbox("🎯 Hedef Seviye", level_options, index=default_index)
 
-        # Eğer kullanıcı değiştirdiyse veritabanını güncelle
         if selected_level_short != db_target_level:
             db.update_target_level(user_id, selected_level_short)
             st.toast(f"Seviye {selected_level_short} olarak kaydedildi!", icon="💾")
-            # Sayfayı yenilemeye gerek yok, sonraki girişte hatırlar.
-            # Ama active_levels'ı hemen güncellemeliyiz.
 
-        # Seçilen seviyeye göre aktif seviyeleri belirle
         active_levels = ["A1"]
         if "A2" in selected_level_short: active_levels += ["A2"]
         if "B1" in selected_level_short: active_levels += ["A2", "B1"]
@@ -266,12 +260,20 @@ else:
 
     # --- 4. LİSTEM ---
     elif menu == "📚 Listem":
-        t1, t2 = st.tabs(["✅ Ezberlenen", "🤔 Tekrar"]);
+        t1, t2 = st.tabs(["✅ Ezberlenen", "🤔 Tekrar"])
+
         with t1:
-            w = db.get_learned_words(user_id);
-            st.dataframe(pd.DataFrame(w, columns=["İngilizce", "Türkçe", "Seviye", "Tür", "Örnek"]),
-                         use_container_width=True) if w else st.info("Boş")
+            w = db.get_learned_words(user_id)
+            if w:
+                st.dataframe(pd.DataFrame(w, columns=["İngilizce", "Türkçe", "Seviye", "Tür", "Örnek"]),
+                             use_container_width=True)
+            else:
+                st.info("Henüz ezberlenen kelime yok.")
+
         with t2:
-            r = db.get_review_words(user_id);
-            st.dataframe(pd.DataFrame(r, columns=["İngilizce", "Türkçe", "Seviye", "Tür", "Örnek"]),
-                         use_container_width=True) if r else st.success("Temiz!")
+            r = db.get_review_words(user_id)
+            if r:
+                st.dataframe(pd.DataFrame(r, columns=["İngilizce", "Türkçe", "Seviye", "Tür", "Örnek"]),
+                             use_container_width=True)
+            else:
+                st.success("Tekrar listesi tertemiz! 🎉")
