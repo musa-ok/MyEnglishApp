@@ -86,18 +86,18 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# --- YARDIMCI FONKSİYONLAR ---
+# --- RÜTBE FONKSİYONU (ZORLAŞTIRILMIŞ) ---
 def get_user_rank(xp):
-    if xp < 100:
-        return "Çaylak 👶", 0, 100
-    elif xp < 300:
-        return "Hırslı Öğrenci 🤓", 100, 300
-    elif xp < 600:
-        return "Kelime Avcısı 🏹", 300, 600
-    elif xp < 1200:
-        return "B2 Master 😎", 600, 1200
+    if xp < 500:
+        return "Çaylak 👶", 0, 500
+    elif xp < 2500:
+        return "Hırslı Öğrenci 🤓", 500, 2500
+    elif xp < 7000:
+        return "Kelime Avcısı 🏹", 2500, 7000
+    elif xp < 15000:
+        return "B2 Master 😎", 7000, 15000
     else:
-        return "Grand Master 🔥", 1200, 5000
+        return "Grand Master 🔥", 15000, 50000
 
 
 def autoplay_audio(text):
