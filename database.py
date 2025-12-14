@@ -110,10 +110,12 @@ def update_target_level(user_id, new_level):
     conn.close()
 
 
+# --- SAYAÇ DÜZELTME 1: GENEL İSTATİSTİK ---
 def get_user_stats(user_id):
     conn = create_connection();
     c = conn.cursor()
-    c.execute("SELECT count(*) FROM user_progress WHERE user_id=? AND status='learned'", (user_id,))
+    # BURAYA DISTINCT EKLENDİ (Çift kayıtları 1 say)
+    c.execute("SELECT count(DISTINCT word_id) FROM user_progress WHERE user_id=? AND status='learned'", (user_id,))
     learned = c.fetchone()[0]
     c.execute("SELECT xp, streak, target_level FROM users WHERE id=?", (user_id,))
     res = c.fetchone()
@@ -138,16 +140,22 @@ def get_leaderboard():
     return res
 
 
+# --- SAYAÇ DÜZELTME 2: SEVİYE SAYAÇLARI ---
 def get_level_progress(user_id):
     conn = create_connection();
     c = conn.cursor()
-    c.execute("SELECT level, COUNT(*) FROM words GROUP BY level")
+
+    # DISTINCT ile aynı kelimeleri tek say
+    c.execute("SELECT level, COUNT(DISTINCT english) FROM words GROUP BY level")
     total_counts = {row[0]: row[1] for row in c.fetchall()}
-    c.execute('''SELECT w.level, COUNT(*) FROM user_progress up 
+
+    # DISTINCT ile aynı kelimeyi 2 kere öğrenmişsen tek say
+    c.execute('''SELECT w.level, COUNT(DISTINCT w.id) FROM user_progress up 
                  JOIN words w ON up.word_id = w.id 
                  WHERE up.user_id = ? AND up.status = 'learned' 
                  GROUP BY w.level''', (user_id,))
     learned_counts = {row[0]: row[1] for row in c.fetchall()}
+
     conn.close()
     stats = {}
     for lvl in ['A1', 'A2', 'B1', 'B2']:
@@ -163,7 +171,6 @@ def get_new_word_for_user(user_id, target_levels=None):
     c = conn.cursor()
     if target_levels:
         placeholders = ','.join(['?'] * len(target_levels))
-        # DISTINCT eklendi
         query = f'''SELECT DISTINCT * FROM words WHERE id NOT IN (SELECT word_id FROM user_progress WHERE user_id = ? AND status='learned') AND level IN ({placeholders}) ORDER BY RANDOM() LIMIT 1'''
         params = [user_id] + target_levels
         c.execute(query, params)
@@ -204,7 +211,6 @@ def get_quiz_question(user_id, target_levels=None):
         level_filter = f"AND w.level IN ({placeholders})"
         params += target_levels
 
-    # DISTINCT eklendi
     c.execute(
         f'''SELECT DISTINCT w.* FROM words w JOIN user_progress up ON w.id = up.word_id WHERE up.user_id = ? AND up.status = 'needs_review' {level_filter} ORDER BY RANDOM() LIMIT 1''',
         params)
@@ -222,7 +228,6 @@ def get_quiz_question(user_id, target_levels=None):
 def get_learned_words(user_id):
     conn = create_connection();
     c = conn.cursor()
-    # DISTINCT eklendi
     c.execute(
         "SELECT DISTINCT w.id, w.english, w.turkish, w.level, w.pos, w.example_sentence FROM words w JOIN user_progress up ON w.id = up.word_id WHERE up.user_id = ? AND up.status = 'learned'",
         (user_id,))
@@ -240,6 +245,7 @@ def inject_ghost_data(username="Ghost"):
     if not user: conn.close(); return
     user_id = user[0]
 
+    # --- KELİME LİSTELERİ ---
     learned_list = [("fuel", "yakıt"), ("sandwich", "sandviç"), ("every", "her"), ("gallery", "galeri"),
                     ("nobody", "hiç kimse"), ("girl", "kız"), ("hide", "saklamak"), ("dialogue", "diyalog"),
                     ("important", "önemli"), ("money", "para"), ("rule", "kural"), ("idea", "fikir"), ("song", "şarkı"),
@@ -267,6 +273,8 @@ def inject_ghost_data(username="Ghost"):
 
     for eng, tur in learned_list:
         try:
+            # EKLERKEN 'OR IGNORE' kullanıyoruz ama veritabanında zaten çift kayıt varsa
+            # yukarıdaki DISTINCT sorguları bunları eler.
             c.execute(
                 "INSERT OR IGNORE INTO words (english, turkish, level, pos, example_sentence) VALUES (?, ?, 'A1', 'n.', '-')",
                 (eng, tur))
