@@ -14,12 +14,19 @@ try:
 except Exception as e:
     st.error(f"DB Hatası: {e}")
 
-# --- CSS ---
+# --- CSS (DÜZELTİLDİ: Padding Arttırıldı) ---
 st.markdown("""
 <style>
     .stApp { background-color: #0E1117; }
-    .block-container { padding-top: 1rem !important; max-width: 800px; }
 
+    /* DÜZELTİLEN KISIM: Sayfanın tepesine boşluk verdik */
+    .block-container { 
+        padding-top: 3.5rem !important; /* Eskiden 1rem'di, şimdi 3.5rem yaptık */
+        padding-bottom: 2rem !important; 
+        max-width: 800px; 
+    }
+
+    /* Kart Tasarımı */
     .card-container {
         background: linear-gradient(135deg, #161b22 0%, #0d1117 100%);
         border: 1px solid #30363D;
@@ -50,6 +57,12 @@ st.markdown("""
     div.stButton > button:active { transform: scale(0.96); }
 
     .stProgress > div > div > div > div { background-color: #58A6FF; }
+
+    /* Tablo Başlıklarını Belirginleştir */
+    button[data-baseweb="tab"] {
+        font-size: 18px !important;
+        font-weight: bold !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -72,7 +85,8 @@ if 'user' not in st.session_state: st.session_state.user = None
 if not st.session_state.user:
     c1, c2, c3 = st.columns([1, 6, 1])
     with c2:
-        st.markdown("<h1 style='text-align:center; color:#58A6FF;'>🇬🇧 Oxford 3000</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align:center; color:#58A6FF; margin-top:20px;'>🇬🇧 Oxford 3000</h1>",
+                    unsafe_allow_html=True)
         t1, t2 = st.tabs(["Giriş", "Kayıt"])
         with t1:
             u = st.text_input("Kullanıcı");
@@ -133,6 +147,7 @@ else:
 
         if st.button("Çıkış"): st.session_state.user = None; st.rerun()
 
+    # --- 1. ÇALIŞ ---
     if menu == "⚡ Çalış":
         if 'last_lvl' not in st.session_state: st.session_state.last_lvl = selected_lvl
         if st.session_state.last_lvl != selected_lvl:
@@ -187,6 +202,7 @@ else:
         else:
             st.success("Bu seviyedeki tüm kelimeleri bitirdin! 🎉")
 
+    # --- 2. QUIZ ---
     elif menu == "🏆 Quiz":
         if 'quiz_data' not in st.session_state or st.session_state.quiz_data is None:
             st.session_state.quiz_data = db.get_quiz_question(user_id, active_levels)
@@ -223,6 +239,7 @@ else:
                 """<div style='text-align:center; padding:40px; background:#161b22; border-radius:20px; border:1px solid #7EE787;'><h2 style='color:#7EE787;'>Tebrikler! 🎉</h2><p style='color:#ccc;'>Quiz listen tertemiz.</p></div>""",
                 unsafe_allow_html=True)
 
+    # --- 3. LİDERLER ---
     elif menu == "🥇 Liderler":
         st.subheader("🏆 Şampiyonlar Ligi")
         for i, (u, x, s) in enumerate(db.get_leaderboard()):
@@ -233,13 +250,14 @@ else:
                 f"<div style='background:{bg}; border:{bd}; padding:15px; border-radius:12px; margin-bottom:8px; display:flex; justify-content:space-between;'><div style='display:flex; gap:10px;'><span style='font-size:24px;'>{ic}</span><span style='font-weight:bold; color:#c9d1d9;'>{u}</span></div><div style='text-align:right;'><div style='color:#F2CC60; font-weight:bold;'>{x} XP</div><div style='font-size:12px; color:#8b949e;'>🔥 {s} gün</div></div></div>",
                 unsafe_allow_html=True)
 
+    # --- 4. LİSTEM ---
     elif menu == "📚 Listem":
+        # Sekmeleri biraz aşağıya almak için CSS'te padding-top arttırdık.
         t1, t2 = st.tabs(["✅ Ezber", "🤔 Tekrar"])
         with t1:
             w = db.get_learned_words(user_id)
             if w:
                 st.caption(f"{len(w)} kelime")
-                # HATA BURADAYDI, ENUMERATE VE UNIQ KEY İLE ÇÖZÜLDÜ
                 for idx, i in enumerate(w):
                     c1, c2 = st.columns([4, 1]);
                     c1.markdown(f"**{i[1]}**: {i[2]}")
