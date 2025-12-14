@@ -159,23 +159,32 @@ def get_level_progress(user_id):
 
 
 # --- KELİME ÇEKME ---
-def get_new_word_for_user(user_id, target_levels=None):
+def get_new_word_for_user(user_id, target_levels=None, excluded_ids=None):
     conn = create_connection();
     c = conn.cursor()
+
+    # Temel Sorgu
+    query = "SELECT DISTINCT * FROM words WHERE id NOT IN (SELECT word_id FROM user_progress WHERE user_id = ? AND status='learned')"
+    params = [user_id]
+
     if target_levels:
         placeholders = ','.join(['?'] * len(target_levels))
-        query = f'''SELECT DISTINCT * FROM words WHERE id NOT IN (SELECT word_id FROM user_progress WHERE user_id = ?) AND level IN ({placeholders}) ORDER BY RANDOM() LIMIT 1'''
-        params = [user_id] + target_levels
-        c.execute(query, params)
-    else:
-        query = '''SELECT DISTINCT * FROM words WHERE id NOT IN (SELECT word_id FROM user_progress WHERE user_id = ?) ORDER BY RANDOM() LIMIT 1'''
-        c.execute(query, (user_id,))
+        query += f" AND level IN ({placeholders})"
+        params += target_levels
+
+    if excluded_ids and len(excluded_ids) > 0:
+        safe_ids = ','.join(str(int(x)) for x in excluded_ids)
+        query += f" AND id NOT IN ({safe_ids})"
+
+    query += " ORDER BY RANDOM() LIMIT 1"
+
+    c.execute(query, params)
     word = c.fetchone()
     conn.close()
     return word
 
 
-# --- BUTON İŞLEMLERİ (DELETE -> INSERT Mantığı) ---
+# --- BUTON İŞLEMLERİ ---
 def mark_word_needs_review(user_id, word_id):
     conn = create_connection();
     c = conn.cursor()
@@ -230,7 +239,7 @@ def get_learned_words(user_id):
     return res
 
 
-# --- 🔥 GHOST DATA (DÜZELTİLDİ: ÜZERİNE YAZMA ENGELLENDİ) ---
+# --- GHOST DATA ---
 def inject_ghost_data(username="Ghost"):
     conn = create_connection();
     c = conn.cursor()
@@ -239,38 +248,46 @@ def inject_ghost_data(username="Ghost"):
     if not user: conn.close(); return
     user_id = user[0]
 
-    learned_list = [("fuel", "yakıt"), ("sandwich", "sandviç"), ("every", "her"), ("gallery", "galeri"),
-                    ("nobody", "hiç kimse"), ("girl", "kız"), ("hide", "saklamak"), ("dialogue", "diyalog"),
-                    ("important", "önemli"), ("money", "para"), ("rule", "kural"), ("idea", "fikir"), ("song", "şarkı"),
-                    ("crazy", "deli"), ("wooden", "ahşap"), ("used to", "alışkın olmak"), ("them", "onlara"),
-                    ("win", "kazanmak"), ("apple", "elma"), ("towel", "havlu"), ("nurse", "hemşire"),
-                    ("large", "büyük"), ("firstly", "öncelikle"), ("bicycle", "bisiklet"), ("delicious", "lezzetli"),
-                    ("spider", "örümcek"), ("colour", "renk"), ("lifestyle", "yaşam tarzı"), ("wall", "duvar"),
-                    ("student", "öğrenci"), ("amount", "miktar"), ("billion", "milyar"), ("fruit", "meyve"),
-                    ("fail", "başarısız olmak"), ("soon", "yakında"), ("programme", "program"), ("skirt", "etek"),
-                    ("she", "o"), ("detail", "detay"), ("point", "nokta"), ("eighty", "seksen"), ("pants", "pantolon"),
-                    ("director", "müdür"), ("popular", "popüler"), ("after", "sonrasında"), ("will", "gelecek zaman"),
-                    ("dish", "tabak"), ("exist", "var olmak"), ("warm", "ılık"), ("throw", "atmak"),
-                    ("several", "birçok"), ("sixty", "altmış"), ("touch", "dokunmak"), ("spoon", "kaşık"),
-                    ("save", "kaydetmek"), ("another", "bir diğer"), ("corner", "köşe"), ("small", "küçük"),
-                    ("normal", "normal"), ("advice", "tavsiye"), ("education", "eğitim"), ("spelling", "yazım"),
-                    ("beginning", "başlangıç"), ("structure", "yapı"), ("personality", "kişilik"),
-                    ("buy", "satın almak"), ("March", "Mart"), ("bowl", "tas")]
-    review_list = [("track", "izlemek"), ("unemployment", "işsizlik"), ("experience", "deneyim"),
-                   ("visitor", "ziyaretçi"), ("device", "cihaz"), ("infinitive", "mastar"), ("field", "alan"),
-                   ("position", "konum"), ("disaster", "felaket"), ("happily", "mutlu bir şekilde"),
-                   ("possibility", "olasılık"), ("deal", "anlaşmak"), ("tradition", "gelenek"), ("speech", "konuşma"),
-                   ("receive", "almak"), ("independent", "bağımsız"), ("evidence", "kanıt"), ("suddenly", "aniden"),
-                   ("purpose", "amaç"), ("informal", "resmi olmayan"), ("journey", "seyahat"), ("rise", "yükselmek"),
-                   ("pocket", "cep"), ("rubbish", "zırva"), ("pair", "çift")]
+    # --- SENİN LİSTEN (TEMİZLENMİŞ) ---
+    # Ezberlediklerin
+    learned_list = [
+        ("fuel", "yakıt"), ("track", "izlemek"), ("unemployment", "işsizlik"), ("sandwich", "sandviç"),
+        ("every", "her"), ("gallery", "galeri"), ("nobody", "hiç kimse"), ("girl", "kız"), ("hide", "saklamak"),
+        ("dialogue", "diyalog"), ("important", "önemli"), ("money", "para"), ("rule", "kural"), ("idea", "fikir"),
+        ("song", "şarkı"), ("crazy", "deli"), ("wooden", "ahşap"), ("used to", "alışkın olmak"), ("them", "onlara"),
+        ("win", "kazanmak"), ("apple", "elma"), ("towel", "havlu"), ("nurse", "hemşire"), ("large", "büyük"),
+        ("firstly", "öncelikle"), ("bicycle", "bisiklet"), ("delicious", "lezzetli"), ("spider", "örümcek"),
+        ("colour", "renk"), ("lifestyle", "yaşam tarzı"), ("wall", "duvar"), ("student", "öğrenci"),
+        ("amount", "miktar"), ("billion", "milyar"), ("fruit", "meyve"), ("fail", "başarısız olmak"),
+        ("soon", "yakında"), ("programme", "program"), ("skirt", "etek"), ("detail", "detay"), ("point", "nokta"),
+        ("eighty", "seksen"), ("director", "müdür"), ("popular", "popüler"), ("after", "sonrasında"),
+        ("will", "gelecek zaman"), ("dish", "tabak"), ("exist", "var olmak"), ("warm", "ılık"), ("throw", "atmak"),
+        ("several", "birçok"), ("sixty", "altmış"), ("touch", "dokunmak"), ("spoon", "kaşık"), ("save", "kaydetmek"),
+        ("another", "bir diğer"), ("corner", "köşe"), ("small", "küçük"), ("normal", "normal"), ("advice", "tavsiye"),
+        ("education", "eğitim"), ("spelling", "yazım"), ("beginning", "başlangıç"), ("structure", "yapı"),
+        ("buy", "satın almak"), ("March", "Mart"), ("bowl", "tas"), ("she", "o"), ("pair", "çift"),
+        ("tower", "kule"), ("extra", "ekstra"), ("direction", "yön"), ("train", "tren"), ("medicine", "ilaç"),
+        ("researcher", "araştırmacı"), ("perfect", "mükemmel"), ("feed", "beslemek"), ("sugar", "şeker"),
+        ("cheap", "ucuz"), ("eleven", "on bir"), ("thank", "teşekkür etmek"), ("nut", "ceviz"), ("coffee", "kahve")
+    ]
 
-    # Fonksiyon: Sadece kullanıcı hiç işlem yapmamışsa ekle
+    # Tekrar Listesi (Kırmızı ile işaretlediklerin)
+    # Not: 'personality' ve 'pants' kelimelerini buraya aldım, ezber listesinden sildim.
+    review_list = [
+        ("experience", "deneyim"), ("visitor", "ziyaretçi"), ("device", "cihaz"), ("infinitive", "mastar"),
+        ("field", "alan"), ("position", "konum"), ("disaster", "felaket"), ("happily", "mutlu bir şekilde"),
+        ("possibility", "olasılık"), ("deal", "anlaşmak"), ("tradition", "gelenek"), ("speech", "konuşma"),
+        ("receive", "almak"), ("independent", "bağımsız"), ("evidence", "kanıt"), ("suddenly", "aniden"),
+        ("purpose", "amaç"), ("informal", "resmi olmayan"), ("journey", "seyahat"), ("rise", "yükselmek"),
+        ("pocket", "cep"), ("rubbish", "zırva"), ("condition", "durum"), ("owner", "mal sahibi"),
+        ("personality", "kişilik"), ("pants", "pantolon"), ("pronounce", "telaffuz etmek"), ("ill", "hasta"),
+        ("shoe", "ayakkabı")
+    ]
+
     def safe_insert(u_id, w_id, stat):
-        # Kontrol et: Bu kullanıcı bu kelimeyle ilgili herhangi bir kayda sahip mi?
         c.execute("SELECT 1 FROM user_progress WHERE user_id=? AND word_id=?", (u_id, w_id))
         exists = c.fetchone()
         if not exists:
-            # Kayıt yoksa ekle (Güvenli)
             c.execute("INSERT INTO user_progress (user_id, word_id, status) VALUES (?, ?, ?)", (u_id, w_id, stat))
 
     for eng, tur in learned_list:
@@ -280,7 +297,6 @@ def inject_ghost_data(username="Ghost"):
                 (eng, tur))
             c.execute("SELECT id FROM words WHERE english=?", (eng,))
             wid = c.fetchone()[0]
-            # BURADA KONTROLLÜ EKLEME YAPIYORUZ
             safe_insert(user_id, wid, 'learned')
         except:
             pass
@@ -292,7 +308,8 @@ def inject_ghost_data(username="Ghost"):
                 (eng, tur))
             c.execute("SELECT id FROM words WHERE english=?", (eng,))
             wid = c.fetchone()[0]
-            # BURADA KONTROLLÜ EKLEME YAPIYORUZ
+            # Tekrar listesindekileri zorla eklemiyoruz, safe_insert ile sadece yoksa ekliyoruz
+            # (İstersen burayı değiştirip her zaman resetleyebiliriz ama şimdilik güvenli kalsın)
             safe_insert(user_id, wid, 'needs_review')
         except:
             pass
